@@ -141,25 +141,31 @@ def get_binary_cell_masks(cell_masks):
     return np.array(bin_cell_masks)
 
 # requires NON_BINARY cell masks
-def get_cell_markers(cell_mask, erosion_radius=24):    
-    eroded = np.zeros(cell_mask.shape)
-        
-    labels = list(np.unique(cell_mask))
-
-    #drop background
-    labels.remove(0)
-
-    for label in labels:
-        # extract each labeled cell mask separately
-        high_mask = highlight_labels(cell_mask, [label], value=label)
-
-        #erode it with a disk structuring element
-        temp_erod = disk_erode(high_mask)
-
-        #add this label mask to the final combined mask
-        eroded = np.add(eroded, temp_erod)
+def get_cell_markers(cell_masks, erosion_radius=24):    
+    cell_markers = []
     
-    return eroded
+    for mask in cell_masks:
+        # array of individual images binarized by label and eroded
+        eroded = np.zeros(mask.shape)
+        
+        labels = list(np.unique(mask))
+        
+        #drop background
+        labels.remove(0)
+        
+        for label in labels:
+            # extract each labeled cell mask separately
+            high_mask = highlight_labels(mask, [label], value=label)
+            
+            #erode it with a disk structuring element
+            temp_erod = disk_erode(high_mask, erosion_radius)
+            
+            #add this label mask to the final combined mask
+            eroded = np.add(eroded, temp_erod)
+            
+        cell_markers.append(eroded)
+        
+    return np.array(cell_markers)
 
 # requires NON_BINARY cell masks
 def get_binary_cell_markers(cell_masks, erosion_radius=24):
@@ -188,15 +194,11 @@ def get_binary_cell_markers(cell_masks, erosion_radius=24):
         
     return np.array(cell_markers)
 
-#TODO: algorithm is implemented but not tested. Currently takes too long to run for even one picture
-#      Optimize 
+# Retained for compatibility
 def get_weight_map(cell_marker, subtract_marker_flag=False):
     #constants
     A = 0.004
     B = 40
-    
-    #debug
-    count = 0
     
     labels = list(np.unique(cell_marker))
     labels.remove(0)
@@ -216,3 +218,35 @@ def get_weight_map(cell_marker, subtract_marker_flag=False):
         pix_weight = np.multiply(pix_weight, inv_bin_cell_marker)
         
     return pix_weight
+
+def get_weight_maps(cell_markers, subtract_marker_flag=False):
+    #constants
+    A = 0.004
+    B = 40
+
+    weight_maps = []
+    
+    for cell_marker in cell_markers:
+        #debug
+        count = 0
+        
+        labels = list(np.unique(cell_marker))
+        labels.remove(0)
+        
+        max_dt_sq = np.zeros(cell_marker.shape)
+        
+        for label in labels:
+            max_dt_sq = np.add(max_dt_sq, get_max_dt_sq(cell_marker, label))
+        
+        pix_weight = 1 + (A * max_dt_sq)
+        
+        # try with flag = True if default doesn't work. The equation probably doesnt need the following
+        # but the sample image in paper https://is.muni.cz/www/svoboda/ISBI-final.pdf seems to show
+        # subtracted markers.
+        if subtract_marker_flag == True:
+            inv_bin_cell_marker = np.logical_not(masks_to_binary(cell_marker)).astype('uint16')
+            pix_weight = np.multiply(pix_weight, inv_bin_cell_marker)
+        
+        weight_maps.append(pix_weight)
+        
+    return np.array(weight_maps)
