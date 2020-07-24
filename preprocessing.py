@@ -167,6 +167,27 @@ def get_cell_markers(cell_masks, erosion_radius=24):
         
     return np.array(cell_markers)
 
+def get_markers(cell_mask, erosion_radius=24):    
+    # array of individual images binarized by label and eroded
+    eroded = np.zeros(cell_mask.shape)
+    
+    labels = list(np.unique(cell_mask))
+    
+    #drop background
+    labels.remove(0)
+    
+    for label in labels:
+        # extract each labeled cell mask separately
+        high_mask = highlight_labels(cell_mask, [label], value=label)
+        
+        #erode it with a disk structuring element
+        temp_erod = disk_erode(high_mask, erosion_radius)
+        
+        #add this label mask to the final combined mask
+        eroded = np.add(eroded, temp_erod)
+        
+    return eroded
+
 # requires NON_BINARY cell masks
 def get_binary_cell_markers(cell_masks, erosion_radius=24):
     cell_markers = []
