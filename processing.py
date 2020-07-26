@@ -10,7 +10,8 @@ import imutils
 
 from scipy import ndimage as ndi
 from scipy.spatial.distance import euclidean
-from skimage.morphology import watershed, disk
+from skimage.segmentation import watershed
+from skimage.morphology import disk
 from skimage.feature import peak_local_max
 
 def fi_list(path):
