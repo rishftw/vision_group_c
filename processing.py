@@ -59,7 +59,7 @@ def equalize_clahe(img):
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     return clahe.apply(image)
 
-def disk_erode(img, radius=24, iters=1):
+def disk_erode(img, radius=12, iters=1):
     image = img.copy()
     kern_disk = disk(radius)
     eroded = cv2.erode(image, kern_disk, iterations=iters)
@@ -83,8 +83,8 @@ def get_min_dist_marker(cell_mask, x, y, label):
 def get_max_dt_sq(img, label):
 # from equation (1) in https://is.muni.cz/www/svoboda/ISBI-final.pdf
     #constants
-    A = 0.004
-    B = 40
+    A = 0.008
+    B = 120
         
     image = img.copy()
     image = image.astype('uint16')
@@ -178,7 +178,7 @@ def get_cell_markers(cell_masks, erosion_radius=24):
         
     return np.array(cell_markers)
 
-def get_markers(cell_mask, erosion_radius=24):    
+def get_markers(cell_mask, erosion_radius=12):    
     # array of individual images binarized by label and eroded
     eroded = np.zeros(cell_mask.shape)
     
@@ -228,8 +228,8 @@ def get_binary_cell_markers(cell_masks, erosion_radius=24):
 # Retained for compatibility
 def get_weight_map(cell_marker, subtract_marker_flag=False):
     #constants
-    A = 0.004
-    B = 40
+    A = 0.008
+    B = 120
     
     labels = list(np.unique(cell_marker))
     labels.remove(0)
@@ -252,8 +252,8 @@ def get_weight_map(cell_marker, subtract_marker_flag=False):
 
 def get_weight_maps(cell_markers, subtract_marker_flag=False):
     #constants
-    A = 0.004
-    B = 40
+    A = 0.008
+    B = 120
 
     weight_maps = []
     
