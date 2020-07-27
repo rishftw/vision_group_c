@@ -3,3 +3,4 @@ Fluo-N2DL-HeLa/
 PhC-C2DL-PSC/
 Readme.txt
 .ipynb_checkpoints/
+__pycache__/
