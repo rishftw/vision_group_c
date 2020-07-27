@@ -25,15 +25,25 @@ def pimg(img, label=""):
     plt.imshow(img)
     plt.show()
 
-def highlight_labels(img, labels, value=255):
+def highlight_label(img, label, value=255):
     image = img.copy()
-    
-    for label in labels:
-        np.putmask(image, image == label, np.full(image.shape, value).astype('uint16'))
-        image = image.astype('uint16')
-        np.putmask(image, image != label, np.zeros(image.shape).astype('uint16'))
-                
-    return image
+
+    # for label in labels:
+    #     # np.putmask(image, image == label.astype('uint16'), np.full(image.shape, value).astype('uint16'))
+    #     # image = image.astype('uint16')
+    #     # np.putmask(image, image != label.astype('uint16'), np.zeros(image.shape).astype('uint16'))
+    #     temp_image = np.zeros(image.shape)
+    #     temp_image[image == label] = value
+    #     temp_image[image != label] = 0
+
+    #     final_image += temp_image
+
+
+    temp_image = np.zeros(image.shape)
+    temp_image[image == label] = value
+    temp_image[image != label] = 0
+
+    return temp_image
 
 def masks_to_binary(img):
     image = img.copy()
@@ -79,7 +89,7 @@ def get_max_dt_sq(img, label):
     image = img.copy()
     image = image.astype('uint16')
 
-    high_mask = highlight_labels(image, [ label ], value=label)
+    high_mask = highlight_label(image, label, value=label)
 
     inv = np.logical_not(high_mask)
     inv = inv.astype('uint8')
@@ -156,7 +166,7 @@ def get_cell_markers(cell_masks, erosion_radius=24):
         
         for label in labels:
             # extract each labeled cell mask separately
-            high_mask = highlight_labels(mask, [label], value=label)
+            high_mask = highlight_label(mask, label, value=label)
             
             #erode it with a disk structuring element
             temp_erod = disk_erode(high_mask, erosion_radius)
@@ -179,11 +189,10 @@ def get_markers(cell_mask, erosion_radius=24):
     
     for label in labels:
         # extract each labeled cell mask separately
-        high_mask = highlight_labels(cell_mask, [label], value=label)
+        high_mask = highlight_label(cell_mask, label, value=label)
         
         #erode it with a disk structuring element
         temp_erod = disk_erode(high_mask, erosion_radius)
-        
         #add this label mask to the final combined mask
         eroded = np.add(eroded, temp_erod)
         
@@ -204,7 +213,7 @@ def get_binary_cell_markers(cell_masks, erosion_radius=24):
         
         for label in labels:
             # extract each labeled cell mask separately
-            high_mask = highlight_labels(mask, [label], value=label)
+            high_mask = highlight_label(mask, label, value=label)
             
             #erode it with a disk structuring element
             temp_erod = disk_erode(high_mask, erosion_radius)
