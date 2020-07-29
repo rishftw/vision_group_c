@@ -297,6 +297,17 @@ def get_ws_from_markers(markers, cell_mask):
 
     marker_thresh_unopen = threshold_binary_image(markers, 0.5)
     marker_thresh = cv2.morphologyEx(marker_thresh_unopen, cv2.MORPH_OPEN, disk(OPEN_RADIUS))
+    blurred = cv2.medianBlur(marker_thresh, 5)
+    closed = cv2.morphologyEx(marker_thresh, cv2.MORPH_CLOSE, disk(2))
+    closed_blurred = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, disk(2))
+    denoised = cv2.fastNlMeansDenoising(marker_thresh_unopen, h=3)
+
+    # pimg(marker_thresh_unopen)
+    # pimg(marker_thresh)
+    # pimg(blurred)
+    # pimg(closed)
+    # pimg(closed_blurred)
+    # pimg(denoised)
 
 
     distance = ndi.distance_transform_edt(marker_thresh)
