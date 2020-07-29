@@ -304,7 +304,7 @@ def main():
                 pred_m = (output[:,0] > 0.5).int()
                 pred_c = (output[:,1] > 0.5).int()
 
-                running_loss += weighted_mean_sq_error(output, cell_masks, markers, weight_map)
+                running_loss += weighted_mean_sq_error(output, markers.float(), cell_masks.float(), weight_map)
 
                 if i == 0:
                     plt.imshow(x[0][0].cpu(), cmap='gray')
