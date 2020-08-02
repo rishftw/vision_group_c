@@ -41,7 +41,19 @@ def disk_erode(img, radius=24, iters=1):
 
 
 #Extract labels
-def find_labels(filename):
+def find_labels_Fluo(filename):
+    image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+    # Threshold at value of 129
+    thresh = cv2.threshold(image, 129, 255, cv2.THRESH_BINARY)[1]
+    distance = ndi.distance_transform_edt(thresh)
+    local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((10, 10)),
+                            labels=thresh)
+    markers, _ = ndi.label(local_maxi)
+    ws_labels = watershed(-distance, markers, mask=thresh)
+    return ws_labels,image
+
+#Extract labels Phc
+def find_labels_Phc(filename):
     image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
     thresh = cv2.threshold(image, 162, 255, cv2.THRESH_BINARY)[1]
     kernel = np.ones((4,4),np.uint8)
@@ -53,6 +65,20 @@ def find_labels(filename):
     markers, _ = ndi.label(local_maxi)
     ws_labels = watershed(-distance, markers, mask=thresh)
     return ws_labels,image
+
+# #Extract labels  DIC
+# def find_labels_DIC(filename):
+#     image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+#     thresh = cv2.threshold(image, 162, 255, cv2.THRESH_BINARY)[1]
+#     kernel = np.ones((4,4),np.uint8)
+#     # Perform an erosion followed by dilation opening to remove noise
+#     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+#     distance = ndi.distance_transform_edt(opening)
+#     local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((10, 10)),
+#                             labels=thresh)
+#     markers, _ = ndi.label(local_maxi)
+#     ws_labels = watershed(-distance, markers, mask=thresh)
+#     return ws_labels,image
 
 
 #extract centers of each labels 
@@ -92,7 +118,7 @@ def find_centers(ws_labels, image):
 def plot_rectangles(image, centers, boundingBoxes):
     for i in range(len(boundingBoxes)):
         x1,y1,x2,y2 = boundingBoxes[i]
-        cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)\
+        cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)
         
         
         
