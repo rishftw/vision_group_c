@@ -68,7 +68,7 @@ class PathTracker():
             #Store the centers obtained in the frame to cell_centers_in_frame
             for (i, center) in enumerate(centers):
                 cell_centers_in_frame[i] = center
-
+            # print(cell_centers_in_frame[0:10])
             #If it  is the initial frame add all the centers as new cells 
             if len(self.tracked_cells) == 0:
                 for i in range(len(cell_centers_in_frame)):
@@ -88,12 +88,14 @@ class PathTracker():
             for i in range(N):
                 for j in range(M):
                     try:
+                        
                         diff = self.tracked_cells[i].prediction - cell_centers_in_frame[j]
                         distance = np.sqrt(diff[0][0]*diff[0][0] + diff[0][1]*diff[0][1])
                         cost[i][j] = distance
                     except:
                         print("error while calculating distance")
                         pass
+            
             # for i in range(len(self.tracked_cells)):
             #     for j in range(len(cell_centers_in_frame)):
             #         if int(cost[i][j]) == 0:
@@ -104,7 +106,6 @@ class PathTracker():
             # Using Hungarian Algorithm assign the correct detected measurements
             # to predicted cell positions      
             row_ind, col_ind = linear_sum_assignment(cost)
-            
 #             if(self.frame_id ==3):
 #                 print(row_ind)
 #                 print(len(row_ind))
@@ -116,6 +117,9 @@ class PathTracker():
                 assignment[row_ind[i]] = col_ind[i]
             # print('assignment:', len(assignment),'\n')
             # Identify tracker.tracks with no assignment, if any
+            # print(assignment)
+            # print(row_ind, col_ind)
+          
             un_assigned_tracks = []
             for i in range(len(assignment)):
                 if (assignment[i] != -1):
@@ -123,14 +127,14 @@ class PathTracker():
 #                     # If cost is very high then un_assign (delete) the tracker.track
                     if (cost[i][assignment[i]] > self.cost_thresh_allowed):
                         assignment[i] = -1
-                        # print(i)
                         un_assigned_tracks.append(i)
-                    pass
+                    else:
+                        pass
+                        # print('no assignment found')
                         
                 else:
                     # un_assigned_tracks.append(i)
                     self.tracked_cells[i].skipped_frames += 1
-
             # If tracker.tracks are not detected for long time, remove them
             del_tracks = []
             for i in range(len(self.tracked_cells)):
@@ -140,7 +144,7 @@ class PathTracker():
             if len(del_tracks) > 0:  # only when skipped frame exceeds max
                 for id in del_tracks:
                     if id < N:
-                        del self.tracked_cells_ids[id]
+                        del self.tracked_cells_ids[self.tracked_cells[id].cell_id]
                         del self.tracked_cells[id]
                         del assignment[id]
                     else:
@@ -156,6 +160,7 @@ class PathTracker():
             # Start new tracker for the cells
             if(len(un_assigned_detects) != 0):
                 for i in range(len(un_assigned_detects)):
+                    # print(un_assigned_detects[i])
                     added_cell = self.add_cell(cell_centers_in_frame[un_assigned_detects[i]])
                     self.add_to_frame(cell_centers_in_frame[un_assigned_detects[i]])
 
@@ -164,16 +169,6 @@ class PathTracker():
             #         print(i)
             # pass
             for i in range(len(assignment)):
-#                 print(cell_centers_in_frame[assignment[i]])
-#                 if(self.tracked_cells[i].cell_id  in [31]):
-                        # print(self.tracked_cells[i].cell_id)
-                        # print('i : ->',i,'->>', self.tracked_cells[i].positions)
-                        # print(cell_centers_in_frame[assignment[i]])
-                        # test2 = list(zip(assignment[:],cell_centers_in_frame[assignment[::-1]]))
-                        # zipped_list = test2[:]
-                        # print(zipped_list)
-                        # print(len(cell_centers_in_frame[assignment[:]]))
-#                         print(len(assignment[:]))
                 self.tracked_cells[i].KF.predict()
                 if(assignment[i] != -1):
                     self.tracked_cells[i].skipped_frames = 0
@@ -198,12 +193,15 @@ class PathTracker():
                         # print(assignment[self.tracked_cells[i].cell_id])
                         # for i in range(len(assignment)):
                         #     print('i : ->',i,'->>', self.tracked_cells[i].positions)
-                cv2.circle(image, (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), 2, (0,255,0), -1)
+                cv2.putText(image, "id: {}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, (0, 20, 40), 2)
+        for cell in self.tracked_cells:
+            for prediction in cell.positions:
+                cv2.circle(image, (int(prediction[0]), int(prediction[1])), 2, (0,255,0), -1)
 
-            
         plt.imshow(image)
         plt.show()
-#         
+        
         # print('assignment:',len(assignment))
         # print('cell_centers_in_frame:',len(cell_centers_in_frame))
         # print('cells in frame:',len(self.tracks_cell_in_frame[self.frame_id]))
