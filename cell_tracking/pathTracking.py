@@ -1,188 +1,163 @@
-from collections import deque
 import numpy as np
-from cell_tracking.kalman import KalmanFilter
+from cell_tracking.kalman_filter import KalmanFilter
 from scipy.optimize import linear_sum_assignment
 import cv2
 import matplotlib.pyplot as plt
 
+class Track(object):
+    """Track class for every object to be tracked
+    Attributes:
+        None
+    """
 
-class TrackedCell():
-
-    def __init__(self, center, cell_id):
-        self.cell_id = cell_id  # identification of each track object
-        self.KF = KalmanFilter(center)  # KF instance to track this object
-        self.prediction = np.asarray(center).reshape(
-            1, 2)  # predicted centroids (x,y)
-        self.skipped_frames = 0  # number of frames skipped undetected
-        self.positions = []  # cell positions
-
-    def updatePrediction(self, center):
-        """ Predict the state of the cell """
-        self.prediction = np.array(self.KF.predict()).reshape(1, 2)
-        self.KF.correct(np.matrix(center).reshape(2, 1))
-
-
-class PathTracker():
-
-    def __init__(self):
-        """Class to keep variable used to Track cells for cell class
+    def __init__(self, prediction, trackIdCount):
+        """Initialize variables used by Track class
+        Args:
+            prediction: predicted centroids of object to be tracked
+            trackIdCount: identification of each track object
+        Return:
+            None
         """
-        self.tracker_id = 0
-        self.frame_id = 0
-        self.cost_thresh_allowed = 150
-        self.max_frame_skips_allowed = 10
-        self.max_trace_length_allowed = 1000
-        # list of all tracked cell initialized
-        self.tracked_cells = []
-        # list of all tracked cell ID initialized
-        self.tracked_cells_ids = []
-        # list of all tracked cell initialized in frame
-        self.tracks_cell_in_frame = []
-        # list of all tracked cell initialized out of frame or disappeared
-        self.tracks_cell_disappeared_frame = []
-        # list of all tracked cell initialized relation to parent
-        self.tracks_cell_in_frame_parents = []
+        self.track_id = trackIdCount  # identification of each track object
+        self.KF = KalmanFilter()  # KF instance to track this object
+        self.prediction = np.asarray(prediction)  # predicted centroids (x,y)
+        self.skipped_frames = 0  # number of frames skipped undetected
+        self.trace = []  # trace path
 
-    def add_cell(self, center):
-        # initialise new cell object
-        new_cell = TrackedCell(center, self.tracker_id)
-        # add cell ID to list of all tracked cell ID initialized
-        self.tracked_cells_ids.append(self.tracker_id)
-        # add given center to initial position
-        new_cell.positions.append(center)
-        # add cell to list of all tracked cells initialized
-        self.tracked_cells.append(new_cell)
-        # increment tracker ID
-        self.tracker_id += 1
-        return new_cell
 
-    def add_to_frame(self, center):
-        # add the frame to list of tracked cells per frame
-        np.append(self.tracks_cell_in_frame[self.frame_id], center)
+class PathTracker(object):
+    """Tracker class that updates track vectors of object tracked
+    Attributes:
+        None
+    """
 
-    def update(self, image, centers):
-        # If centers are detected in frame process the centers
-        cell_centers_in_frame = np.zeros((len(centers), 2), dtype="int")
+    def __init__(self, dist_thresh, max_frames_to_skip, max_trace_length,
+                 trackIdCount):
+        """Initialize variable used by Tracker class
+        Args:
+            dist_thresh: distance threshold. When exceeds the threshold,
+                         track will be deleted and new track is created
+            max_frames_to_skip: maximum allowed frames to be skipped for
+                                the track object undetected
+            max_trace_lenght: trace path history length
+            trackIdCount: identification of each track object
+        Return:
+            None
+        """
+        self.dist_thresh = dist_thresh
+        self.max_frames_to_skip = max_frames_to_skip
+        self.max_trace_length = max_trace_length
+        self.tracks = []
+        self.trackIdCount = trackIdCount
 
-        if (len(cell_centers_in_frame) > 0):
-            # Store the centers obtained in the frame to cell_centers_in_frame
-            for (i, center) in enumerate(centers):
-                cell_centers_in_frame[i] = center
-            # print(cell_centers_in_frame[0:10])
-            # If it  is the initial frame add all the centers as new cells
-            if len(self.tracked_cells) == 0:
-                for i in range(len(cell_centers_in_frame)):
-                    # Add the cell and returns cell ID
-                    self.add_cell(cell_centers_in_frame[i])
-                # Add the centers list to the tracked centers list of the frame.
+    def Update(self, detections):
+        """Update tracks vector using following steps:
+            - Create tracks if no tracks vector found
+            - Calculate cost using sum of square distance
+              between predicted vs detected centroids
+            - Using Hungarian Algorithm assign the correct
+              detected measurements to predicted tracks
+              https://en.wikipedia.org/wiki/Hungarian_algorithm
+            - Identify tracks with no assignment, if any
+            - If tracks are not detected for long time, remove them
+            - Now look for un_assigned detects
+            - Start new tracks
+            - Update KalmanFilter state, lastResults and tracks trace
+        Args:
+            detections: detected centroids of object to be tracked
+        Return:
+            None
+        """
 
-            self.tracks_cell_in_frame.append(cell_centers_in_frame)
+        # Create tracks if no tracks vector found
+        if (len(self.tracks) == 0):
+            for i in range(len(detections)):
+                track = Track(detections[i], self.trackIdCount)
+                self.trackIdCount += 1
+                self.tracks.append(track)
 
-            # Calculate cost using sum of square distance between
-            # predicted vs detected centroids
-            # TODO: TO BE REFERENCED
-            N = len(self.tracked_cells)
-            M = len(cell_centers_in_frame)
+        # Calculate cost using sum of square distance between
+        # predicted vs detected centroids
+        N = len(self.tracks)
+        M = len(detections)
+        cost = np.zeros(shape=(N, M))   # Cost matrix
+        for i in range(len(self.tracks)):
+            for j in range(len(detections)):
+                try:
+                    diff = self.tracks[i].prediction - detections[j]
+                    distance = np.sqrt(diff[0][0]*diff[0][0] +
+                                       diff[1][0]*diff[1][0])
+                    cost[i][j] = distance
+                except:
+                    pass
 
-            cost = np.zeros(shape=(N, M))   # Cost matrix
-            for i in range(N):
-                for j in range(M):
-                    try:
+        # Let's average the squared ERROR
+        cost = (0.5) * cost
+        # Using Hungarian Algorithm assign the correct detected measurements
+        # to predicted tracks
+        assignment = []
+        for _ in range(N):
+            assignment.append(-1)
+        row_ind, col_ind = linear_sum_assignment(cost)
+        for i in range(len(row_ind)):
+            assignment[row_ind[i]] = col_ind[i]
 
-                        diff = self.tracked_cells[i].prediction - \
-                            cell_centers_in_frame[j]
-                        distance = np.sqrt(
-                            diff[0][0]*diff[0][0] + diff[0][1]*diff[0][1])
-                        cost[i][j] = distance
-                    except:
-                        print("error while calculating distance")
-                        pass
+        # Identify tracks with no assignment, if any
+        un_assigned_tracks = []
+        for i in range(len(assignment)):
+            if (assignment[i] != -1):
+                # check for cost distance threshold.
+                # If cost is very high then un_assign (delete) the track
+                if (cost[i][assignment[i]] > self.dist_thresh):
+                    assignment[i] = -1
+                    un_assigned_tracks.append(i)
+                pass
+            else:
+                self.tracks[i].skipped_frames += 1
 
-            # for i in range(len(self.tracked_cells)):
-            #     for j in range(len(cell_centers_in_frame)):
-            #         if int(cost[i][j]) == 0:
-            #             print('cost:',i,'-> ',j , cost[i][j],'\n')
-            # Let's average the squared ERROR
-
-            cost = (0.5) * cost
-            # Using Hungarian Algorithm assign the correct detected measurements
-            # to predicted cell positions
-            row_ind, col_ind = linear_sum_assignment(cost)
-
-            assignment = [-1 for i in range(N)]
-
-            for i in range(len(row_ind)):
-                assignment[row_ind[i]] = col_ind[i]
-
-            # Identify tracker.tracks with no assignment, if any
-            un_assigned_tracks = []
-            for i in range(len(assignment)):
-                if (assignment[i] != -1):
-                    #                     # check for cost distance threshold.
-                    #                     # If cost is very high then un_assign (delete) the tracker.track
-                    if (cost[i][assignment[i]] > self.cost_thresh_allowed):
-                        assignment[i] = -1
-                        un_assigned_tracks.append(i)
-                    else:
-                        pass
-
+        # If tracks are not detected for long time, remove them
+        del_tracks = []
+        for i in range(len(self.tracks)):
+            if (self.tracks[i].skipped_frames > self.max_frames_to_skip):
+                del_tracks.append(i)
+        if len(del_tracks) > 0:  # only when skipped frame exceeds max
+            for id in del_tracks:
+                if id < len(self.tracks):
+                    del self.tracks[id]
+                    del assignment[id]
                 else:
-                    # un_assigned_tracks.append(i)
-                    self.tracked_cells[i].skipped_frames += 1
-            # If tracker.tracks are not detected for long time, remove them
-            del_tracks = []
-            for i in range(len(self.tracked_cells)):
-                if (self.tracked_cells[i].skipped_frames > self.max_frame_skips_allowed):
-                    del_tracks.append(i)
-            # del_tracks = sorted(del_tracks, reverse=True)
-            if len(del_tracks) > 0:  # only when skipped frame exceeds max
-                for id in del_tracks:
-                    if id < N:
-                        del self.tracked_cells_ids[self.tracked_cells[id].cell_id]
-                        del self.tracked_cells[id]
-                        del assignment[id]
-                    else:
-                        print("ERROR: id is greater than length of tracker.tracks")
-            # Now look for un_assigned detects
-            un_assigned_detects = []
-            for i in range(len(cell_centers_in_frame)):
+                    dprint("ERROR: id is greater than length of tracks")
+
+        # Now look for un_assigned detects
+        un_assigned_detects = []
+        for i in range(len(detections)):
                 if i not in assignment:
                     un_assigned_detects.append(i)
 
-            # Start new tracker for the cells
-            if(len(un_assigned_detects) != 0):
-                for i in range(len(un_assigned_detects)):
-                    if un_assigned_detects[i] not in self.tracked_cells_ids:    
-                        added_cell = self.add_cell(
-                            cell_centers_in_frame[un_assigned_detects[i]])
-                        self.add_to_frame(
-                            cell_centers_in_frame[un_assigned_detects[i]])
+        # Start new tracks
+        if(len(un_assigned_detects) != 0):
+            for i in range(len(un_assigned_detects)):
+                track = Track(detections[un_assigned_detects[i]],
+                              self.trackIdCount)
+                self.trackIdCount += 1
+                self.tracks.append(track)
 
-            for i in range(len(assignment)):
-                self.tracked_cells[i].KF.predict()
-                if(assignment[i] != -1):
-                    self.tracked_cells[i].skipped_frames = 0
-                    self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
-                        np.matrix(cell_centers_in_frame[assignment[i]]).reshape(2, 1), 1)
-                else:
-                    self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
-                        np.matrix([[0], [1]]).reshape(2, 1), 0)
+        # Update KalmanFilter state, lastResults and tracks trace
+        for i in range(len(assignment)):
+            self.tracks[i].KF.predict()
 
-                if(len(self.tracked_cells[i].positions) > self.max_trace_length_allowed):
-                    for j in range(len(self.tracked_cells[i].positions) -
-                                   self.max_trace_length_allowed):
-                        del self.tracked_cells[i].positions[j]
-                self.tracked_cells[i].positions.append(
-                    self.tracked_cells[i].prediction[0])
-                cv2.putText(image, "id: {}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6, (0, 20, 40), 2)
-        for cell in self.tracked_cells:
-            for prediction in cell.positions:
-                cv2.circle(image, (int(prediction[0]), int(
-                    prediction[1])), 2, (0, 255, 0), -1)
+            if(assignment[i] != -1):
+                self.tracks[i].skipped_frames = 0
+                self.tracks[i].prediction = self.tracks[i].KF.correct(
+                                            detections[assignment[i]], 1)
+            else:
+                self.tracks[i].prediction = self.tracks[i].KF.correct(
+                                            np.array([[0], [0]]), 0)
 
-        plt.imshow(image)
-        plt.show()
+            if(len(self.tracks[i].trace) > self.max_trace_length):
+                for j in range(len(self.tracks[i].trace) -
+                               self.max_trace_length):
+                    del self.tracks[i].trace[j]
 
-        self.frame_id += 1
-        return
+            self.tracks[i].trace.append(self.tracks[i].prediction)
+            self.tracks[i].KF.lastResult = self.tracks[i].prediction

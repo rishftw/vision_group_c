@@ -104,7 +104,7 @@ def find_centers(ws_labels, image):
         # draw a rectangle enclosing the object
         try:
             x,y,w,h = cv2.boundingRect(c)
-            center = (int(x + w / 2.0), int(y + h / 2.0))
+            center = np.array([[int(x + w / 2.0)], [int(y + h / 2.0)]])
             boxes.append([x,y,x+w,y+h])
             centers.append(center)
             
