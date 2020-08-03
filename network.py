@@ -213,9 +213,7 @@ def weighted_mean_sq_error(inputs, targets_m, targets_c, weights):
 
 """
 def get_score(outputs, ground_truth):
-    """
-    #Calculates Accuracy Score across the batch
-    """
+    # Calculates Accuracy Score across the batch
     score = 0
     batch_size = outputs.shape[0]
     total = outputs.shape[1] * outputs.shape[2]

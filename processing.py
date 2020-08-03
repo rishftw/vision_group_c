@@ -20,9 +20,12 @@ def fi_list(path):
     """
     return sorted([os.path.join(path, f) for f in os.listdir(path)])
 
-def pimg(img, label=""):
+def pimg(img, label="", grayscale=False):
     print(label, end="")
-    plt.imshow(img)
+    if grayscale == True:
+        plt.imshow(img, cmap='gray')
+    else:
+        plt.imshow(img)
     plt.show()
 
 def highlight_label(img, label, value=255):
@@ -54,9 +57,9 @@ def masks_to_binary(img):
     
     return image
 
-def equalize_clahe(img):
+def equalize_clahe(img, cl=2.0, tgs=(8,8)):
     image = img.copy()
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    clahe = cv2.createCLAHE(clipLimit=cl, tileGridSize=tgs)
     return clahe.apply(image)
 
 def disk_erode(img, radius=12, iters=1):
@@ -83,7 +86,7 @@ def get_min_dist_marker(cell_mask, x, y, label):
 def get_max_dt_sq(img, label):
 # from equation (1) in https://is.muni.cz/www/svoboda/ISBI-final.pdf
     #constants
-    A = 0.008
+    A = 0.012
     B = 120
         
     image = img.copy()
@@ -134,11 +137,6 @@ def get_cell_masks(path="test_dir/st"):    #"DIC-2/02_ST/SEG"):
         image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         
         cell_masks.append(image)
-        
-        #debug
-        count+=1
-        if count > 5:
-            break
         
     return np.array(cell_masks)
 
@@ -228,7 +226,7 @@ def get_binary_cell_markers(cell_masks, erosion_radius=24):
 # Retained for compatibility
 def get_weight_map(cell_marker, subtract_marker_flag=False):
     #constants
-    A = 0.008
+    A = 0.012
     B = 120
     
     labels = list(np.unique(cell_marker))
@@ -286,21 +284,21 @@ def threshold_binary_image(img, thresh=0.5):
     image = img.copy()
     return (image*1.0 >= thresh).astype('uint8')
 
-def get_ws_from_markers(markers, cell_mask):
+def get_ws_from_markers(markers, cell_mask, open_radius=0):
     # 0 -> Fluo, 1-> DIC, 2 -> PhC
 
     #constants
-    OPEN_RADIUS = 4
+    OPEN_RADIUS = open_radius
     # = 0 for 0, = 4 for 1, = 0 for 2
 
     mask_thresh = threshold_binary_image(cell_mask, 0.5)
 
     marker_thresh_unopen = threshold_binary_image(markers, 0.5)
     marker_thresh = cv2.morphologyEx(marker_thresh_unopen, cv2.MORPH_OPEN, disk(OPEN_RADIUS))
-    blurred = cv2.medianBlur(marker_thresh, 5)
-    closed = cv2.morphologyEx(marker_thresh, cv2.MORPH_CLOSE, disk(2))
-    closed_blurred = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, disk(2))
-    denoised = cv2.fastNlMeansDenoising(marker_thresh_unopen, h=3)
+    # blurred = cv2.medianBlur(marker_thresh, 5)
+    # closed = cv2.morphologyEx(marker_thresh, cv2.MORPH_CLOSE, disk(2))
+    # closed_blurred = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, disk(2))
+    # denoised = cv2.fastNlMeansDenoising(marker_thresh_unopen, h=3)
 
     # pimg(marker_thresh_unopen)
     # pimg(marker_thresh)
@@ -358,7 +356,30 @@ def get_bound_box_from_ws(img, ws_labels):
         # draw a rectangle enclosing the object
         x,y,w,h = cv2.boundingRect(c)
         cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
-        cv2.putText(image, "#{}".format(label), (int(x) - 10, int(y)),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        # cv2.putText(image, "#{}".format(label), (int(x) - 10, int(y)),
+        #     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
     
     return image
+
+# Takes in image and pads it so that the height and width are divisible
+# by 16. Returns the image, and a pair that is the amount of padding
+# on top, left to remove in postprocessing.
+def get_padded16(img):
+    image = img.copy()
+    padding_h = 0
+    padding_w = 0
+
+    # If height not a multiple of 16, pad the top to make it so
+    if image.shape[0] % 16 != 0:
+        padding_h = 16 - (image.shape[0] % 16)
+        image = cv2.copyMakeBorder(image, padding_h, 0, 0, 0, cv2.BORDER_REFLECT_101)
+
+    # If width not a multiple of 16, pad the left to make it so
+    if image.shape[1] % 16 != 0:
+        padding_w = 16 - (image.shape[1] % 16)
+        image = cv2.copyMakeBorder(image, 0, 0, padding_w, 0, cv2.BORDER_REFLECT_101)
+
+    return image, (padding_h, padding_w)
+
+def get_unpadded(img, pad_h, pad_w):
+    return img[pad_h:, pad_w:]
