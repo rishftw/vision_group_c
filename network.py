@@ -20,7 +20,8 @@ from skimage.filters import meijering
 
 from scipy import ndimage as ndi
 
-BATCH_SIZE = 5
+BATCH_SIZE = 3
+IMAGES_LIMIT = 2000
 
 def plot_two_images(imgL, imgR, titleL, titleR):
     f = plt.figure()
@@ -71,7 +72,13 @@ def load_data(dataset):
     markers_path = path.replace("originals", "markers")
     wm_path = path.replace("originals", "weight_maps")
     
+    
+    count = 0
     for f in os.listdir(path):
+        # Limits dataset size for RAM compatibility
+        if count >= IMAGES_LIMIT:
+            break
+        
         if not f.endswith(".npy"):
             continue
 #         image = cv2.imread(os.path.join(path, f), cv2.IMREAD_GRAYSCALE)
@@ -79,8 +86,10 @@ def load_data(dataset):
 #         cell_mask = cv2.imread(os.path.join(mask_path, f), cv2.IMREAD_UNCHANGED)
 #         markers = cv2.imread(os.path.join(markers_path, f), cv2.IMREAD_UNCHANGED)
 #         weight_map = cv2.imread(os.path.join(wm_path, f), cv2.IMREAD_UNCHANGED)
-        
-        image = np.load(os.path.join(path, f))
+    
+        count += 1
+    
+#         image = np.load(os.path.join(path, f))
         clahe = np.load(os.path.join(clahe_path, f))
         cell_mask = np.load(os.path.join(mask_path, f))
         markers = np.load(os.path.join(markers_path, f))
@@ -90,7 +99,7 @@ def load_data(dataset):
         # Pack the data for the DataLoader
         target = (cell_mask, markers, weight_map)
         data.append((np.array([clahe]), target))
-        
+    
     train_size = int(0.8 * len(data))
     test_size = len(data) - train_size
     train_data, test_data = random_split(data, [train_size, test_size])
@@ -213,7 +222,9 @@ def weighted_mean_sq_error(inputs, targets_m, targets_c, weights):
 
 """
 def get_score(outputs, ground_truth):
-    # Calculates Accuracy Score across the batch
+    
+    #Calculates Accuracy Score across the batch
+    
     score = 0
     batch_size = outputs.shape[0]
     total = outputs.shape[1] * outputs.shape[2]
@@ -230,11 +241,11 @@ def main():
     Train 2 networks for predicting markers and the cell mask respectively
     Set trains on data from "Sequence 1 Masks" and "Sequence 2 Masks"
     and save the models
-    """    
+    """ 
     print("Loading Data...")
     trainLoader, testLoader = load_data('DIC-3_cache')
     print("Finished.")
-
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Using device: " + str(device))
     
@@ -252,7 +263,7 @@ def main():
     file_count_m = 0
     
     # Iterate over a number of epochs on the data
-    for epoch in range(300):
+    for epoch in range(100):
         for i, batch in enumerate(trainLoader, 0):
             x = batch[0].to(device)
             target = batch[1]
@@ -261,7 +272,7 @@ def main():
 
             # Clear gradients from last step
             optimiser.zero_grad()
-
+            
             # Predict the markers from the image
             output = net(x)
             # loss_m = criterion(output_m, markers.long())
@@ -319,14 +330,13 @@ def main():
                 torch.save(net.state_dict(), "./CNN_min_loss_{}.pth".format(file_count_c))
                 min_loss = loss
                 file_count_c += 1
-                file_count_c %= 10
+                file_count_c %= 20
             
             print(f"EPOCH {epoch+1} LOSS: {loss:.3f}\nMin Loss: {min_loss:.3f}\n\n")
         net.train()
 
     torch.save(net.state_dict(), "./CNN_v1.pth")
     print("Saved models. Min Loss : ", str(min_loss))
-
 
 if __name__ == '__main__':
     main()

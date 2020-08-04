@@ -330,36 +330,6 @@ def get_ws_from_markers(markers, cell_mask, open_radius=0):
 
     return ws_labels
 
-def get_bound_box_from_ws(img, ws_labels):
-    image = img.copy()
-
-    #TODO: cite/recode following
-    # loop over the unique labels returned by the Watershed
-    # algorithm
-    for label in np.unique(ws_labels):
-        # if the label is zero, we are examining the 'background'
-        # so simply ignore it
-        if label == 0:
-            continue
-
-        # otherwise, allocate memory for the label region and draw
-        # it on the mask
-        mask = np.zeros(image.shape, dtype="uint8")
-        mask[ws_labels == label] = 255
-
-        # detect contours in the mask and grab the largest one
-        cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE)
-        cnts = imutils.grab_contours(cnts)
-        c = max(cnts, key=cv2.contourArea)
-
-        # draw a rectangle enclosing the object
-        x,y,w,h = cv2.boundingRect(c)
-        cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
-        # cv2.putText(image, "#{}".format(label), (int(x) - 10, int(y)),
-        #     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    
-    return image
 
 # Takes in image and pads it so that the height and width are divisible
 # by 16. Returns the image, and a pair that is the amount of padding
