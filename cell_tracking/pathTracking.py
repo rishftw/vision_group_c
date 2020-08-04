@@ -85,6 +85,7 @@ class PathTracker():
             M = len(cell_centers_in_frame)
 
             cost = np.zeros(shape=(N, M))   # Cost matrix
+            least_finder = np.zeros(shape=(N, M))
             for i in range(N):
                 for j in range(M):
                     try:
@@ -94,6 +95,7 @@ class PathTracker():
                         distance = np.sqrt(
                             diff[0][0]*diff[0][0] + diff[0][1]*diff[0][1])
                         cost[i][j] = distance
+                        least_finder[i][j] = distance
                     except:
                         print("error while calculating distance")
                         pass
@@ -113,22 +115,42 @@ class PathTracker():
 
             for i in range(len(row_ind)):
                 assignment[row_ind[i]] = col_ind[i]
-
-            # Identify tracker.tracks with no assignment, if any
-            un_assigned_tracks = []
-            for i in range(len(assignment)):
-                if (assignment[i] != -1):
-                    #                     # check for cost distance threshold.
-                    #                     # If cost is very high then un_assign (delete) the tracker.track
-                    if (not cost[i][assignment[i]] < self.cost_thresh_allowed):
-                        assignment[i] = -1
-                        un_assigned_tracks.append(i)
-                    else:
+            for i in range(N):
+                result = np.where(least_finder[i] < min(least_finder[i])+10)[0]
+                # print(np.where(min(least_finder[i])))
+                # print(self.tracked_cells[i].positions[-1])
+                if assignment[i]!= -1:
+                    if(len(result) == 1):
+                        if( result[0] == assignment[i]):
+                            pass
+                        else:
+                            # assignment[i] = self.tracked_cells[i].cell_id
+                            assignment[i] = -2
+                            self.tracked_cells[i].skipped_frames += 1
+                    elif assignment[i] in result:
                         pass
+                    else: 
+                        # assignment[i]  = self.tracked_cells[i].cell_id
+                        assignment[i]  = -2
+                        self.tracked_cells[i].skipped_frames += 1
+            # for i  in range(len(assignment)):
+            #     print(i,assignment[i])
+            
+            # # Identify tracker.tracks with no assignment, if any
+            # un_assigned_tracks = []
+            # for i in range(len(assignment)):
+            #     if (assignment[i] != -1):
+            #         #                     # check for cost distance threshold.
+            #         #                     # If cost is very high then un_assign (delete) the tracker.track
+            #         if (not cost[i][assignment[i]] < self.cost_thresh_allowed):
+            #             assignment[i] = -1
+            #             un_assigned_tracks.append(i)
+            #         else:
+            #             pass
 
-                else:
-                    # un_assigned_tracks.append(i)
-                    self.tracked_cells[i].skipped_frames += 1
+            #     else:
+            #         # un_assigned_tracks.append(i)
+            #         self.tracked_cells[i].skipped_frames += 1
             # If tracker.tracks are not detected for long time, remove them
             del_tracks = []
             for i in range(len(self.tracked_cells)):
@@ -160,23 +182,27 @@ class PathTracker():
 
             for i in range(len(assignment)):
                 self.tracked_cells[i].KF.predict()
-                if(assignment[i] != -1):
+                if(assignment[i] > -1):
                     self.tracked_cells[i].skipped_frames = 0
                     self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
                         np.matrix(cell_centers_in_frame[assignment[i]]).reshape(2, 1), 1)
+                    # print(self.tracked_cells[i].prediction[0,0])
+                # elif assignment[i]==-1:
+                #     self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
+                #         np.matrix([[0], [1]]).reshape(2, 1), 0)
                 else:
+                    # print(type(self.tracked_cells[i].positions[-1]))
+                    self.tracked_cells[i].prediction[0,0] = self.tracked_cells[i].positions[-1][0]
+                    self.tracked_cells[i].prediction[0,1] = self.tracked_cells[i].positions[-1][1]
                     pass
-                    # self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
-                    #     np.matrix([[0], [1]]).reshape(2, 1), 0)
-
                 if(len(self.tracked_cells[i].positions) > self.max_trace_length_allowed):
-                    for j in range(len(self.tracked_cells[i].positions) -
-                                   self.max_trace_length_allowed):
+                    for j in range(len(self.tracked_cells[i].positions) - self.max_trace_length_allowed):
                         del self.tracked_cells[i].positions[j]
                 self.tracked_cells[i].positions.append(
                     self.tracked_cells[i].prediction[0])
-                # cv2.putText(image, "{}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
-                #             0.5, (0, 20, 40), 2)
+                # if(self.tracked_cells[i].cell_id == 96):
+                cv2.putText(image, "{}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, (0, 20, 40), 2)
         for cell in self.tracked_cells:
             for i in range(len(cell.positions)-1):
                 # cv2.circle(image, (int(prediction[0]), int(
