@@ -29,8 +29,8 @@ class PathTracker():
         """
         self.tracker_id = 0
         self.frame_id = 0
-        self.cost_thresh_allowed = 150
-        self.max_frame_skips_allowed = 10
+        self.cost_thresh_allowed = 10
+        self.max_frame_skips_allowed = 20
         self.max_trace_length_allowed = 1000
         # list of all tracked cell initialized
         self.tracked_cells = []
@@ -120,7 +120,7 @@ class PathTracker():
                 if (assignment[i] != -1):
                     #                     # check for cost distance threshold.
                     #                     # If cost is very high then un_assign (delete) the tracker.track
-                    if (cost[i][assignment[i]] > self.cost_thresh_allowed):
+                    if (not cost[i][assignment[i]] < self.cost_thresh_allowed):
                         assignment[i] = -1
                         un_assigned_tracks.append(i)
                     else:
@@ -138,7 +138,7 @@ class PathTracker():
             if len(del_tracks) > 0:  # only when skipped frame exceeds max
                 for id in del_tracks:
                     if id < N:
-                        del self.tracked_cells_ids[self.tracked_cells[id].cell_id]
+                        del self.tracked_cells_ids[id]
                         del self.tracked_cells[id]
                         del assignment[id]
                     else:
@@ -165,8 +165,9 @@ class PathTracker():
                     self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
                         np.matrix(cell_centers_in_frame[assignment[i]]).reshape(2, 1), 1)
                 else:
-                    self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
-                        np.matrix([[0], [1]]).reshape(2, 1), 0)
+                    pass
+                    # self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
+                    #     np.matrix([[0], [1]]).reshape(2, 1), 0)
 
                 if(len(self.tracked_cells[i].positions) > self.max_trace_length_allowed):
                     for j in range(len(self.tracked_cells[i].positions) -
@@ -174,14 +175,18 @@ class PathTracker():
                         del self.tracked_cells[i].positions[j]
                 self.tracked_cells[i].positions.append(
                     self.tracked_cells[i].prediction[0])
-                cv2.putText(image, "id: {}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6, (0, 20, 40), 2)
+                # cv2.putText(image, "{}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
+                #             0.5, (0, 20, 40), 2)
         for cell in self.tracked_cells:
-            for prediction in cell.positions:
-                cv2.circle(image, (int(prediction[0]), int(
-                    prediction[1])), 2, (0, 255, 0), -1)
+            for i in range(len(cell.positions)-1):
+                # cv2.circle(image, (int(prediction[0]), int(
+                #     prediction[1])), 2, (0, 255, 0), -1)
+                cv2.line(image, (int(cell.positions[i][0]), int(
+                    cell.positions[i][1])), (int(cell.positions[i+1][0]), int(
+                    cell.positions[i+1][1])), (0, 255, 0), 2)
 
-        plt.imshow(image)
+
+        plt.imshow(image,  cmap="gray")
         plt.show()
 
         self.frame_id += 1
