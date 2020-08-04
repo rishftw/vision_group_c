@@ -120,32 +120,33 @@ def plot_rectangles(image, centers, boundingBoxes):
         x1,y1,x2,y2 = boundingBoxes[i]
         cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)
         
-        
-        
-#write labels related to each label
-#             cv2.putText(image, "#{}".format(label), (int(x) - 10, int(y)),
-#                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-##Need to provide labels
-# def put_lables(image, centers, boundingBoxes):
-#     for i in range(len(boundingBoxes)):
-#         x,y,_,_ = boundingBoxes[i]
-#         cv2.putText(image, "#{}".format(label), (int(x), int(y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+#puts text on image
+def put_text(image, x,y,text):
+    cv2.putText(image,text, (int(x), int(y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
     
 
-
-def draw_path(image, tracker):
-    for i in range(len(tracker.tracked_cells)):
-        if (len(tracker.tracked_cells[i].positions) > 1):
-            x = int(tracker.tracked_cells[i].positions[-1][0, 0])
-            y = int(tracker.tracked_cells[i].positions[-1][0, 1])
-            tl = (x-10, y-10)
-            br = (x+10, y+10)
-            cv2.rectangle(image, tl, br, (0, 255, 0), 1)
-
-            for k in range(1, len(tracker.tracked_cells[i].positions) - 1):
-                x = int(tracker.tracked_cells[i].positions[k][0, 0])
-                y = int(tracker.tracked_cells[i].positions[k][0, 1])
-                cv2.circle(image, (x, y), 1, (0,255,0), -1)
-            cv2.circle(image, (x, y), 2, (0,255,0), -1)
-    plt.imshow(image)
+#Draws the path from the given tracking object 
+def print_tracks(plot_image,tracker, number_of_cells):
+    colors = [(0, 255, 0), (0, 0, 255), (255, 255, 0),
+            (127, 127, 255), (255, 0, 255), (255, 127, 255),
+            (127, 0, 255), (127, 0, 127), (127, 10, 255), (0, 255, 127)]
+    for i in range(len(tracker.cells)):
+            no = round(i % 10)
+            if (len(tracker.cells[i].positions) > 1):
+                x = int(tracker.cells[i].positions[-1][0, 0])
+                y = int(tracker.cells[i].positions[-1][0, 1])
+                tl = (x-10, y-10)
+                br = (x+10, y+10)
+                cv2.rectangle(plot_image, tl, br, (0, 255, 0), 1)   
+                for k in range(1, len(tracker.cells[i].positions) - 1):
+                    x = int(tracker.cells[i].positions[k][0, 0])
+                    y = int(tracker.cells[i].positions[k][0, 1])
+                    x2 = int(tracker.cells[i].positions[k+1][0, 0])
+                    y2 = int(tracker.cells[i].positions[k+1][0, 1])
+                    cv2.circle(plot_image, (x, y), 2, colors[no], 1)
+                    # cv2.line(plot_image, (x, y), (x2,y2), colors[no], 1)
+                cv2.circle(plot_image, (x, y), 2, colors[no], 1)
+    put_text(plot_image, 10,50,"No of cells: {}".format(number_of_cells))
+    plt.imshow(plot_image,  cmap="gray")
     plt.show()

@@ -38,7 +38,7 @@ class KalmanFilter(object):
         # Current state of the cell
         self.state = np.matrix([[0], [1], [0], [1]])
         # Predicted state
-        self.prediction = None
+        self.predictedstate = None
 
     def predict(self):
         """Predicts the next state of the cell using the 
@@ -48,7 +48,7 @@ class KalmanFilter(object):
         # P(i) = A*P(i-1)*A(Transpose) + Q
         self.predictedErrorCov = self.A*self.errorCov*self.A.T + self.Q
         state_array = np.asarray(self.state)
-        self.prediction = state_array[0], state_array[2]
+        self.predictedstate = state_array[0], state_array[2]
         return state_array[0], state_array[2]
 
     def correct(self, center, flag):
@@ -69,6 +69,5 @@ class KalmanFilter(object):
                         self.kalmanGain*self.H)*self.predictedErrorCov
 
         state_array = np.asarray(self.state)
-        self.prediction = state_array[0], state_array[2]
-        return self.state, np.array(self.prediction).reshape(1, 2)
-
+        self.predictedstate = state_array[0], state_array[2]
+        return self.state, np.array(self.predictedstate).reshape(1, 2)
