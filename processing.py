@@ -86,7 +86,7 @@ def get_min_dist_marker(cell_mask, x, y, label):
 def get_max_dt_sq(img, label):
 # from equation (1) in https://is.muni.cz/www/svoboda/ISBI-final.pdf
     #constants
-    A = 0.012
+    A = 0.024
     B = 120
         
     image = img.copy()
@@ -226,7 +226,7 @@ def get_binary_cell_markers(cell_masks, erosion_radius=24):
 # Retained for compatibility
 def get_weight_map(cell_marker, subtract_marker_flag=False):
     #constants
-    A = 0.012
+    A = 0.024
     B = 120
     
     labels = list(np.unique(cell_marker))
@@ -284,7 +284,13 @@ def threshold_binary_image(img, thresh=0.5):
     image = img.copy()
     return (image*1.0 >= thresh).astype('uint8')
 
-def get_ws_from_markers(markers, cell_mask, open_radius=0):
+# Caution, either both or neither paddings should be None.
+def get_ws_from_markers(markers, cell_mask, open_radius=0, padding_top=None, padding_left=None):
+    if padding_top != None or padding_left != None:
+        markers = get_unpadded(markers, padding_top, padding_left)
+        cell_mask = get_unpadded(cell_mask, padding_top, padding_left)
+
+
     # 0 -> Fluo, 1-> DIC, 2 -> PhC
 
     #constants
@@ -383,3 +389,37 @@ def get_padded16(img):
 
 def get_unpadded(img, pad_h, pad_w):
     return img[pad_h:, pad_w:]
+
+def cont_stretch(img):
+    MAX_PIX_VAL = 255
+    MIN_PIX_VAL = 0
+
+    image = img.copy()
+    max_pixel = np.amax(image)
+    min_pixel = np.amin(image)
+
+    image = ( (image-min_pixel) * ( (MAX_PIX_VAL-MIN_PIX_VAL) / (max_pixel - min_pixel) ) )
+    image += MIN_PIX_VAL
+    
+    return image
+
+def get_cell_speed_at_frame(pathTracker, frame_num, center):
+    cell = pathTracker.get_cell_from_center(frame_num,center)
+
+    return cell.get_speed_at_frame()
+
+def get_cell_distance_at_frame(pathTracker, frame_num, center):
+    cell = pathTracker.get_cell_from_center(frame_num,center)
+
+    return cell.get_distance_at_frame()
+
+def get_cell_net_distance_at_frame(pathTracker, frame_num, center):
+    cell = pathTracker.get_cell_from_center(frame_num,center)
+
+    return cell.get_net_distance_at_frame()
+
+def get_cell_confinement_ratio_at_frame(pathTracker, frame_num, center):
+    cell = pathTracker.get_cell_from_center(frame_num,center)
+
+    return cell.get_confinement_ratio()
+

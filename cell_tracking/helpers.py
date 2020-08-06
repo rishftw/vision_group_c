@@ -8,6 +8,7 @@ from skimage.feature import peak_local_max
 from skimage.filters import meijering
 import imutils
 import matplotlib.pyplot as plt
+import math
 
 ##HELPER  FUNCTIONS
 
@@ -85,6 +86,9 @@ def find_labels_Phc(filename):
 def find_centers(ws_labels, image):
     centers = []
     boxes  = []
+    pi_4 = np.pi * 4
+    circular = []
+    is_circular = []
     for label in np.unique(ws_labels):
         # if the label is zero, we are examining the 'background'
         # so simply ignore it
@@ -101,6 +105,13 @@ def find_centers(ws_labels, image):
             cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
         c = max(cnts, key=cv2.contourArea)
+        area = cv2.contourArea(c)
+        if area <= 100:  # skip ellipses smaller then 10x10
+            continue
+
+        arclen = cv2.arcLength(c, True)
+        circularity = (pi_4 * area) / (arclen * arclen)
+        
         # draw a rectangle enclosing the object
         try:
             x,y,w,h = cv2.boundingRect(c)
@@ -110,21 +121,35 @@ def find_centers(ws_labels, image):
                 # center = (int(x + w / 2.0), int(y + h / 2.0))
                 boxes.append([x,y,x+w,y+h])
                 centers.append(center)
-            
+                if(circularity > 0.80):
+                    put_text(image,x,y,'Mitosis' )
+                    circular.append(np.asarray(center))
+                    is_circular.append(True)
+                else:
+                    is_circular.append(False)
+
         except ZeroDivisionError:
             pass
-    return centers, boxes
+    return centers, boxes, circular, is_circular
 
 
 
 #plot rectangles around the labels 
-def plot_rectangles(image, boundingBoxes):
-    for i in range(len(boundingBoxes)):
-        x1,y1,x2,y2 = boundingBoxes[i]
-        cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)
-    # #FOR DEBUGGING
-    # plt.imshow(image,  cmap="gray")
-    # plt.show()
+def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
+    for i in range(len(boundingBoxesList[image_index])):
+        x1,y1,x2,y2 = boundingBoxesList[image_index][i]
+        print(x1,y1,x2,y2)
+        print( boundingBoxesList[image_index][i])
+        print(mito_frames[image_index+1])
+        if boundingBoxesList[image_index][i] in mito_frames[image_index+1]:
+            cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
+            
+        else:
+            cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
+    #FOR DEBUGGING
+    print(image.shape)
+    plt.imshow(image)
+    plt.show()
 
 #puts text on image
 def put_text(image, x,y,text):
