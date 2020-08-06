@@ -30,8 +30,9 @@ from scipy import ndimage as ndi
 track_colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
                     (0, 255, 255), (255, 0, 255), (255, 127, 255),
                     (127, 0, 255), (127, 0, 127)]
-
-pause = False
+font = cv2.FONT_HERSHEY_SIMPLEX
+selectPos = None
+selectFlag = False
 
 def fi_list(path):
     """
@@ -39,13 +40,21 @@ def fi_list(path):
     """
     return sorted([os.path.join(path, f) for f in os.listdir(path)])
 
+def onMouse(event, x, y, flags, param):
+    global selectPos, selectFlag
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print('x = %d, y = %d'%(x, y))
+        selectPos = (x, y)
+        selectFlag = True
+
 def draw_tracks(tracker, image, labels):
+    pause = False
     centers, bounding_boxes = get_centers_and_boxes(labels, image)
     # draw bounding boxes for the detected cells
     plot_rectangles(image, bounding_boxes)
     tracker.Update(centers)
     for i in range(len(tracker.tracks)):
-        if (len(tracker.tracks[i].trace) > 1):
+        if len(tracker.tracks[i].trace) > 1:
             for j in range(len(tracker.tracks[i].trace)-1):
                 # Draw trace line
                 x1 = tracker.tracks[i].trace[j][0][0]
@@ -55,8 +64,50 @@ def draw_tracks(tracker, image, labels):
                 clr = tracker.tracks[i].track_id % 9
                 cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)),
                          track_colours[clr], 3)
+    cv2.namedWindow('Path Tracker')
+    cv2.setMouseCallback('Path Tracker', onMouse)
     cv2.imshow('Path Tracker', image)
-    cv2.waitKey(50)
+
+    global selectPos, selectFlag
+    key = cv2.waitKey(50) & 0xff
+    if key == 27:  # 'Esc' key has been pressed, exit program.
+        exit()
+    if key == 32:  # 'Space' has been pressed. Pause/Resume
+        pause = not pause
+        print("Code is paused. Press 'space' to resume.")
+        while (pause is True):
+            if selectFlag is True: # User has selected a position on the image
+                info = image.copy()
+                # Find selected cell
+                selectedBox = None
+                x, y = selectPos
+                for i in range(len(bounding_boxes)):
+                    box = bounding_boxes[i]
+                    if x >= box[0] and box[2] >= x:
+                        if y >= box[1] and box[3] >= y:
+                            selectedBox = box
+                            center = centers[i]
+                            break
+                if selectedBox is not None:
+                    # Display info
+                    global font
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-10),
+                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-30),
+                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-50),
+                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-70),
+                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.imshow('Path Tracker', info)
+                selectFlag = False
+            key = cv2.waitKey(50) & 0xff
+            if key == 32:
+                pause = False
+                print("Resuming...")
+                break
+            if key == 27:
+                exit()
 
 def detect_DIC(image, net):
     # Preprocessing
