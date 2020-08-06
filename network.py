@@ -154,28 +154,28 @@ class Network(nn.Module):
         x = F.relu(self.conv9(x))
         x = F.relu(self.conv10(x))
         
-        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         x = torch.cat((contraction_256, x), dim=1)
         x = F.relu(self.conv11(x))
         x = F.relu(self.conv12(x))
         
-        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         x = torch.cat((contraction_128, x), dim=1)
         x = F.relu(self.conv13(x))
         x = F.relu(self.conv14(x))
         
-        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         x = torch.cat((contraction_64, x), dim=1)
         x = F.relu(self.conv15(x))
         x = F.relu(self.conv16(x))
         
-        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         x = torch.cat((contraction_32, x), dim=1)
         x = F.relu(self.conv17(x))
         x = F.relu(self.conv18(x))
         
         x = self.conv_out(x)
-        output = F.sigmoid(x)
+        output = torch.sigmoid(x)
         return output
 
 def weighted_mean_sq_error(inputs, targets_m, targets_c, weights):

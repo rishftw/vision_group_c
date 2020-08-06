@@ -43,11 +43,10 @@ def fi_list(path):
 def onMouse(event, x, y, flags, param):
     global selectPos, selectFlag
     if event == cv2.EVENT_LBUTTONDOWN:
-        print('x = %d, y = %d'%(x, y))
         selectPos = (x, y)
         selectFlag = True
 
-def draw_tracks(tracker, image, labels):
+def draw_tracks(tracker, image, labels, frame):
     pause = False
     centers, bounding_boxes = get_centers_and_boxes(labels, image)
     # draw bounding boxes for the detected cells
@@ -69,7 +68,7 @@ def draw_tracks(tracker, image, labels):
     cv2.imshow('Path Tracker', image)
 
     global selectPos, selectFlag
-    key = cv2.waitKey(50) & 0xff
+    key = cv2.waitKey(250) & 0xff
     if key == 27:  # 'Esc' key has been pressed, exit program.
         exit()
     if key == 32:  # 'Space' has been pressed. Pause/Resume
@@ -89,15 +88,16 @@ def draw_tracks(tracker, image, labels):
                             center = centers[i]
                             break
                 if selectedBox is not None:
+                    # TODO Use "frame" param to get info for task 3
                     # Display info
                     global font
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-10),
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-10),
                                 font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-30),
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-30),
                                 font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-50),
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-50),
                                 font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[1]-70),
+                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-70),
                                 font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
                     cv2.imshow('Path Tracker', info)
                 selectFlag = False
@@ -111,20 +111,20 @@ def draw_tracks(tracker, image, labels):
 
 def detect_DIC(image, net):
     # Preprocessing
-    image = equalize_clahe(image)
-    x = torch.tensor(np.array([image.astype(np.float32)]))
+    x = equalize_clahe(image)
+    x = torch.tensor(np.array([x.astype(np.float32)]))
     # Add a "Batch" dimension
     x = x.unsqueeze(0)
 
     with torch.no_grad():
         net.eval()
-        # Generate cell mask and markers from image           
+        # Generate cell mask and markers from image
         output = net(x)
         markers = (output[0,0] > 0.5).int()
         cell_mask = (output[0,1] > 0.5).int()
         
         # Postprocessing
-        ws_labels = get_ws_from_markers(markers.numpy(), cell_mask.numpy(), 12)   
+        ws_labels = get_ws_from_markers(markers.numpy(), cell_mask.numpy(), 12)
         
     return ws_labels
 
@@ -137,7 +137,7 @@ def track_DIC():
     
     # Initialise Tracker
     tracker = PathTracker(20, 30, 15, 100)
-    
+    frame = 0
     for filename in fi_list('DIC-C2DH-HeLa/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
@@ -145,7 +145,8 @@ def track_DIC():
         image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)        
         ws_labels = detect_DIC(image, net)
     
-        draw_tracks(tracker, image, ws_labels)
+        draw_tracks(tracker, image, ws_labels, frame)
+        frame += 1
 
 def detect_Fluo(image):
     # Threshold at value of 129
@@ -160,13 +161,15 @@ def detect_Fluo(image):
 def track_Fluo():
     # Initialise Tracker
     tracker = PathTracker(20, 30, 15, 100)
+    frame = 0
     for filename in fi_list('Fluo-N2DL-HeLa/01'):
         if not filename.endswith(".tif"):
             continue
         image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)        
         ws_labels = detect_Fluo(image)
 
-        draw_tracks(tracker, image, ws_labels)
+        draw_tracks(tracker, image, ws_labels, frame)
+        frame += 1
 
 def detect_PhC(image, net):
     # Preprocessing
@@ -196,14 +199,16 @@ def track_PhC():
     
     # Initialise Tracker
     tracker = PathTracker(20, 30, 15, 100)
-    for filename in fi_list(r'PhC-C2DL-PSC\Sequence 3'):
+    frame = 0
+    for filename in fi_list('PhC-C2DL-PSC/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
         image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         ws_labels = detect_PhC(image, net)
             
-        draw_tracks(tracker, image, ws_labels)
+        draw_tracks(tracker, image, ws_labels, frame)
+        frame += 1
 
 def main():
     select = int(input("Choose a dataset.\n1) DIC-C2DH-HeLa\n2) Fluo-N2DL-HeLa\n3) PhC-C2DL-PSC\n> "))
