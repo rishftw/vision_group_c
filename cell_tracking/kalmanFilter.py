@@ -29,12 +29,6 @@ class KalmanFilter(object):
                             [self.dt**2/2, self.dt, 0, 0],
                             [0, 0, self.dt**3/3, self.dt**2/2],
                             [0, 0, self.dt**2/2, self.dt]])
-
-        # self.Q = np.matrix([[self.dt**4/4, self.dt**3/2, 0, 0],
-        #                     [self.dt**3/2, self.dt**2, 0, 0],
-        #                     [0, 0, self.dt**4/4, self.dt**3/2],
-        #                     [0, 0, self.dt**3/2, self.dt**2]])
-
         # Current state of the cell
         self.state = np.matrix([[0], [1], [0], [1]])
         # Predicted state

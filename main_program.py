@@ -42,7 +42,35 @@ def onMouse(event, x, y, flags, param):
         selectPos = (x, y)
         selectFlag = True
 
-def display_frame(tracker, image, frame, bounding_box_list, centers_list):
+def track_frame(image, tracker, labels, bounding_box_list, centers_list, frames):
+    """
+    Tracks the frame and records its bounding boxes and centers
+    """
+    centers, bounding_boxes, circular, is_circular = find_centers(labels, image)
+    number_of_cells_in_frame = len(centers)
+    put_text(image, 10, 100, "No of cells : {}".format(number_of_cells_in_frame))
+    tracker.update(image, centers, circular, is_circular, bounding_boxes)
+    bounding_box_list.append(bounding_boxes)
+    plot_rectangles_normal(image, bounding_boxes)
+    centers_list.append(centers)
+    print_tracks(image, tracker)
+    frames.append(image)
+
+def show_frames(frames, tracker, bounding_box_list, centers_list):
+    """
+    Show each frame to the user
+    """
+    image_counter = 0
+    for image in frames:
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
+        plot_rectangles(image, bounding_box_list, tracker.mito_frames, image_counter)
+        show_frame_control_display(tracker, image, image_counter, bounding_box_list, centers_list)
+        image_counter += 1
+
+def show_frame_control_display(tracker, image, frame, bounding_box_list, centers_list):
+    """
+    Display the frame and allow user pause/select cell
+    """
     pause = False
 
     cv2.namedWindow('Path Tracker')
@@ -84,6 +112,7 @@ def display_frame(tracker, image, frame, bounding_box_list, centers_list):
                 break
             if key == 27:
                 exit()
+                
 
 def detect_DIC(image, net):
     # Preprocessing
@@ -104,40 +133,6 @@ def detect_DIC(image, net):
         
     return ws_labels
 
-def track_DIC():
-    # Load CNN models
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = Network()
-    # TODO: CHANGE TO BEST MODEL
-    net.load_state_dict(torch.load("CNN_min_loss_dic.pth", map_location=device))
-    
-    # Initialise Tracker
-    pathTracker = PathTracker(cost_threshold=10)
-    bounding_box_list, centers_list = [], []
-    frames = []
-    for filename in fi_list('DIC-C2DH-HeLa/Sequence 3'):
-        if not filename.endswith(".tif"):
-            continue
-        print(filename)
-        image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)        
-        ws_labels = detect_DIC(image, net)
-        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
-        number_of_cells_in_frame = len(centers)
-        put_text(image, 10,100,"No of cells : {}".format(number_of_cells_in_frame))
-        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
-        bounding_box_list.append(boundingBoxes)
-        plot_rectangles_normal(image, boundingBoxes)
-        centers_list.append(centers)
-        print_tracks(image, pathTracker)
-        frames.append(image)
-    
-    image_counter = 0
-    for image in frames:
-        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
-        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
-        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
-        image_counter += 1
-
 def detect_Fluo(image):
     # Threshold at value of 129
     thresh = cv2.threshold(image, 129, 255, cv2.THRESH_BINARY)[1]
@@ -147,34 +142,6 @@ def detect_Fluo(image):
     markers, _ = ndi.label(local_maxi)
     ws_labels = watershed(-distance, markers, mask=thresh)
     return ws_labels
-
-def track_Fluo():
-    # Initialise Tracker
-    pathTracker = PathTracker(cost_threshold=10)
-    bounding_box_list, centers_list = [], []
-    frames = []
-    for filename in fi_list('Fluo-N2DL-HeLa/02'):
-        if not filename.endswith(".tif"):
-            continue
-        print(filename)
-        image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)        
-        ws_labels = detect_Fluo(image)
-        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
-        number_of_cells_in_frame = len(centers)
-        put_text(image, 10,100,"No of cells : {}".format(number_of_cells_in_frame))
-        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
-        bounding_box_list.append(boundingBoxes)
-        plot_rectangles_normal(image, boundingBoxes)
-        centers_list.append(centers)
-        print_tracks(image, pathTracker)
-        frames.append(image)
-    
-    image_counter = 0
-    for image in frames:
-        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
-        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
-        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
-        image_counter += 1
 
 def detect_PhC(image, net):
     # Preprocessing
@@ -195,44 +162,70 @@ def detect_PhC(image, net):
 
     return ws_labels
 
-def track_PhC():
+def track_DIC():
     # Load CNN models
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = Network()
     # TODO: CHANGE TO BEST MODEL
-    net.load_state_dict(torch.load("CNN_min_loss_phc.pth", map_location=device))
+    net.load_state_dict(torch.load("CNN_DIC.pth", map_location=device))
     
     # Initialise Tracker
     pathTracker = PathTracker(cost_threshold=10)
     bounding_box_list, centers_list = [], []
     frames = []
-    count = 0
-    length = 100
+    # Load each frame
+    for filename in fi_list('DIC-C2DH-HeLa/Sequence 3'):
+        if not filename.endswith(".tif"):
+            continue
+        print(filename)
+        image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+        ws_labels = detect_DIC(image, net)
+        track_frame(image, pathTracker, ws_labels, bounding_box_list, centers_list, frames)
+    
+    # Show all the frames
+    show_frames(frames, pathTracker, bounding_box_list, centers_list)
+
+def track_Fluo():
+    # Initialise Tracker
+    pathTracker = PathTracker(cost_threshold=10)
+
+    bounding_box_list, centers_list = [], []
+    frames = []
+    # Load each frame
+    for filename in fi_list('Fluo-N2DL-HeLa/02'):
+        if not filename.endswith(".tif"):
+            continue
+        print(filename)
+        image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+        ws_labels = detect_Fluo(image)
+        track_frame(image, pathTracker, ws_labels, bounding_box_list, centers_list, frames)
+    
+    # Show all the frames
+    show_frames(frames, pathTracker, bounding_box_list, centers_list)
+
+def track_PhC():
+    # Load CNN models
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    net = Network()
+    # TODO: CHANGE TO BEST MODEL
+    net.load_state_dict(torch.load("CNN_PhC.pth", map_location=device))
+    
+    # Initialise Tracker
+    pathTracker = PathTracker(cost_threshold=10)
+    bounding_box_list, centers_list = [], []
+    frames = []
+    # Load each frame
     for filename in fi_list('PhC-C2DL-PSC/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
         image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         ws_labels = detect_PhC(image, net)
-        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
-        number_of_cells_in_frame = len(centers)
-        put_text(image, 10, 100,"No of cells : {}".format(number_of_cells_in_frame))
-        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
-        bounding_box_list.append(boundingBoxes)
-        plot_rectangles_normal(image, boundingBoxes)
-        centers_list.append(centers)
-        print_tracks(image, pathTracker)
-        frames.append(image)
-        count += 1
-        if count > length:
-            break
+        track_frame(image, pathTracker, ws_labels, bounding_box_list, centers_list, frames)
     
-    image_counter = 0
-    for image in frames:
-        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
-        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
-        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
-        image_counter += 1
+    # Show all the frames
+    show_frames(frames, pathTracker, bounding_box_list, centers_list)
+
 
 def main():
     select = int(input("Choose a dataset.\n1) DIC-C2DH-HeLa\n2) Fluo-N2DL-HeLa\n3) PhC-C2DL-PSC\n> "))

@@ -1,4 +1,5 @@
 # train_networks: Training CNN to be used by the main program
+# The training currently uses the cached ima
 
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -20,9 +21,12 @@ from skimage.filters import meijering
 
 from scipy import ndimage as ndi
 
-BATCH_SIZE = 3
-IMAGES_LIMIT = 2000
+BATCH_SIZE = 2
+IMAGES_LIMIT = 5000
 
+DROP_IN = 1000
+
+"""
 def plot_two_images(imgL, imgR, titleL, titleR):
     f = plt.figure()
     f.add_subplot(1,2, 1)
@@ -32,8 +36,9 @@ def plot_two_images(imgL, imgR, titleL, titleR):
     plt.imshow(imgR, cmap='gray')
     plt.title(titleR)
     plt.show(block=True)
-    
+"""
 
+# To load from drive
 # def load_data(dataset):
 #     data = []
 #     paths = [os.path.join(dataset, '01'), os.path.join(dataset, '02')]
@@ -64,6 +69,7 @@ def plot_two_images(imgL, imgR, titleL, titleR):
 #     testLoader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
 #     return trainLoader, testLoader
 
+# Cache System (for large number of images)
 def load_data(dataset):
     data = []
     path = os.path.join(dataset, "originals")
@@ -71,25 +77,24 @@ def load_data(dataset):
     mask_path = path.replace("originals", "masks")
     markers_path = path.replace("originals", "markers")
     wm_path = path.replace("originals", "weight_maps")
-    
-    
+
     count = 0
+    hid_cnt = 0
     for f in os.listdir(path):
         # Limits dataset size for RAM compatibility
         if count >= IMAGES_LIMIT:
             break
+            
+        # Limits dataset size for RAM compatibility
+        hid_cnt += 1
+        if hid_cnt % DROP_IN == 0:
+            continue
         
         if not f.endswith(".npy"):
             continue
-#         image = cv2.imread(os.path.join(path, f), cv2.IMREAD_GRAYSCALE)
-#         clahe = cv2.imread(os.path.join(clahe_path, f), cv2.IMREAD_GRAYSCALE).astype(np.float32)
-#         cell_mask = cv2.imread(os.path.join(mask_path, f), cv2.IMREAD_UNCHANGED)
-#         markers = cv2.imread(os.path.join(markers_path, f), cv2.IMREAD_UNCHANGED)
-#         weight_map = cv2.imread(os.path.join(wm_path, f), cv2.IMREAD_UNCHANGED)
     
         count += 1
-    
-#         image = np.load(os.path.join(path, f))
+
         clahe = np.load(os.path.join(clahe_path, f))
         cell_mask = np.load(os.path.join(mask_path, f))
         markers = np.load(os.path.join(markers_path, f))
@@ -99,6 +104,10 @@ def load_data(dataset):
         # Pack the data for the DataLoader
         target = (cell_mask, markers, weight_map)
         data.append((np.array([clahe]), target))
+    
+#     # For RAM
+#     keep_size = int(KEEP_RATIO * len(data))
+#     data, _ = random_split(data, [keep_size, len(data) - keep_size])
     
     train_size = int(0.8 * len(data))
     test_size = len(data) - train_size
@@ -135,9 +144,11 @@ class Network(nn.Module):
         """
         Forward pass through the network
         """
+        # Convolutional Layer
         x = F.relu(self.conv1(x))
         contraction_32 = F.relu(self.conv2(x))
         
+        # Max Pooling Layer
         x = F.max_pool2d(contraction_32, kernel_size=2)
         x = F.relu(self.conv3(x))
         contraction_64 = F.relu(self.conv4(x))
@@ -154,7 +165,9 @@ class Network(nn.Module):
         x = F.relu(self.conv9(x))
         x = F.relu(self.conv10(x))
         
+        # Upscaling layer
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        # Concatenation Layer
         x = torch.cat((contraction_256, x), dim=1)
         x = F.relu(self.conv11(x))
         x = F.relu(self.conv12(x))
@@ -174,7 +187,9 @@ class Network(nn.Module):
         x = F.relu(self.conv17(x))
         x = F.relu(self.conv18(x))
         
+        # Output Convolutional Layer
         x = self.conv_out(x)
+        # Sigmoid Activation for predicted value in (0, 1)
         output = torch.sigmoid(x)
         return output
 
@@ -186,8 +201,6 @@ def weighted_mean_sq_error(inputs, targets_m, targets_c, weights):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print('.', end='')
     
-#     print(inputs.shape, targets_m.shape)
-    
     inputs = inputs.to(device)
     targets = [targets_m.to(device), targets_c.to(device)]
     weights = weights.to(device)
@@ -195,27 +208,20 @@ def weighted_mean_sq_error(inputs, targets_m, targets_c, weights):
 
     # Calculate loss for each sample in the batch
     for sample in range(inputs.shape[0]):
-#         print("Sample", sample+1)
         sample_loss, total_weight = 0.0, 0.0
         
         pred_markers = inputs[sample][0]
         pred_cmask = inputs[sample][1]
         
-#         pimg(pred_markers.cpu().detach().numpy())
-#         pimg(pred_cmasks.cpu().detach().numpy())
-#         pimg(weights.cpu().detach().numpy())
-        
         exp_markers = targets[0][sample]
         exp_cmask = targets[1][sample]
         
-        numerator = weights[sample] * ( (pred_markers-exp_markers)**2 + (pred_cmask-exp_cmask)**2 )
-        
+        numerator = weights[sample] * ( (pred_markers-exp_markers)**2 + (pred_cmask-exp_cmask)**2 )        
         numerator = torch.sum(numerator)
-        
+
         denominator = torch.sum(weights[sample])
-#         print(np.unique(exp_markers), np.unique(exp_cmasks), numerator, denominator)
-        sample_loss = 0.5 * (numerator/denominator)
-        
+
+        sample_loss = 0.5 * (numerator/denominator)        
         loss[sample] = sample_loss
 
     return torch.mean(loss)
@@ -243,6 +249,7 @@ def main():
     and save the models
     """ 
     print("Loading Data...")
+    # Change this to the training set to be loaded
     trainLoader, testLoader = load_data('DIC-3_cache')
     print("Finished.")
     
@@ -260,7 +267,6 @@ def main():
     
     min_loss = 9999999999
     file_count_c = 0
-    file_count_m = 0
     
     # Iterate over a number of epochs on the data
     for epoch in range(100):
@@ -275,26 +281,26 @@ def main():
             
             # Predict the markers from the image
             output = net(x)
-            # loss_m = criterion(output_m, markers.long())
             loss = criterion(output, markers.float(), cell_masks.float(), weight_map)
             loss.backward()
             optimiser.step()
 
+            # Adjust based on number of batches
             if i == 0 or (i + 1) % 960 == 0:
                 print(f"Epoch: {epoch+1}, Batch: {i + 1}")
                 print(f"Loss: {loss.item():.2f}")
                 
-                plt.imshow(x[0][0].cpu(), cmap='gray')
-                plt.title("Input")
-                plt.show()
+                # plt.imshow(x[0][0].cpu(), cmap='gray')
+                # plt.title("Input")
+                # plt.show()
 
                 # Get the predicted Cell Mask and Markers for one of the images
                 pred_m = ( (output[0][0] > 0.5).int() ).cpu()
                 pred_c = ( (output[0][1] > 0.5).int() ).cpu()
                 
                 # Compare predicted to true images
-                plot_two_images(pred_c.cpu(), cell_masks[0].cpu(), "Predicted Cell Mask", "True Cell Mask")
-                plot_two_images(pred_m.cpu(), markers[0].cpu(), "Predicted Markers", "True Markers")
+                # plot_two_images(pred_c.cpu(), cell_masks[0].cpu(), "Predicted Cell Mask", "True Cell Mask")
+                # plot_two_images(pred_m.cpu(), markers[0].cpu(), "Predicted Markers", "True Markers")
 
 
         # Test on the evaluation set
@@ -315,28 +321,25 @@ def main():
 
                 running_loss += weighted_mean_sq_error(output, markers.float(), cell_masks.float(), weight_map)
 
-                if i == 0:
-                    plt.imshow(x[0][0].cpu(), cmap='gray')
-                    plt.title("Input")
-                    plt.show()
+                # if i == 0:
+                    # plt.imshow(x[0][0].cpu(), cmap='gray')
+                    # plt.title("Input")
+                    # plt.show()
 
                     # Compare predicted to true images
-                    plot_two_images(pred_c[0].cpu(), cell_masks[0].cpu(), "Predicted Cell Mask", "True Cell Mask")
-                    plot_two_images(pred_m[0].cpu(), markers[0].cpu(), "Predicted Markers", "True Markers")
+                    # plot_two_images(pred_c[0].cpu(), cell_masks[0].cpu(), "Predicted Cell Mask", "True Cell Mask")
+                    # plot_two_images(pred_m[0].cpu(), markers[0].cpu(), "Predicted Markers", "True Markers")
 
             loss = running_loss / len(testLoader)
             
             if loss < min_loss:
-                torch.save(net.state_dict(), "./CNN_min_loss_{}.pth".format(file_count_c))
+                # Change this to desired model output
+                torch.save(net.state_dict(), "./CNN_DIC.pth")
+                print("Saved model at Epoch {}, Loss: {:.3f}".format(epoch, loss))
                 min_loss = loss
-                file_count_c += 1
-                file_count_c %= 20
             
             print(f"EPOCH {epoch+1} LOSS: {loss:.3f}\nMin Loss: {min_loss:.3f}\n\n")
         net.train()
-
-    torch.save(net.state_dict(), "./CNN_v1.pth")
-    print("Saved models. Min Loss : ", str(min_loss))
 
 if __name__ == '__main__':
     main()

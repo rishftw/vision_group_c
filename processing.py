@@ -14,19 +14,6 @@ from skimage.segmentation import watershed
 from skimage.morphology import disk
 from skimage.feature import peak_local_max
 
-def fi_list(path):
-    """
-    Return a sorted list of filenames in a given path
-    """
-    return sorted([os.path.join(path, f) for f in os.listdir(path)])
-
-def pimg(img, label="", grayscale=False):
-    print(label, end="")
-    if grayscale == True:
-        plt.imshow(img, cmap='gray')
-    else:
-        plt.imshow(img)
-    plt.show()
 
 def highlight_label(img, label, value=255):
     image = img.copy()
@@ -290,7 +277,6 @@ def get_ws_from_markers(markers, cell_mask, open_radius=0, padding_top=None, pad
         markers = get_unpadded(markers, padding_top, padding_left)
         cell_mask = get_unpadded(cell_mask, padding_top, padding_left)
 
-
     # 0 -> Fluo, 1-> DIC, 2 -> PhC
 
     #constants
@@ -301,38 +287,12 @@ def get_ws_from_markers(markers, cell_mask, open_radius=0, padding_top=None, pad
 
     marker_thresh_unopen = threshold_binary_image(markers, 0.5)
     marker_thresh = cv2.morphologyEx(marker_thresh_unopen, cv2.MORPH_OPEN, disk(OPEN_RADIUS))
-    # blurred = cv2.medianBlur(marker_thresh, 5)
-    # closed = cv2.morphologyEx(marker_thresh, cv2.MORPH_CLOSE, disk(2))
-    # closed_blurred = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, disk(2))
-    # denoised = cv2.fastNlMeansDenoising(marker_thresh_unopen, h=3)
-
-    # pimg(marker_thresh_unopen)
-    # pimg(marker_thresh)
-    # pimg(blurred)
-    # pimg(closed)
-    # pimg(closed_blurred)
-    # pimg(denoised)
-
 
     distance = ndi.distance_transform_edt(marker_thresh)
 
     markers, _ = ndi.label(marker_thresh)
 
     ws_labels = watershed(-distance, markers, mask=mask_thresh)
-
-    # a = mask_thresh
-    # b = marker_thresh_unopen
-    # c = marker_thresh
-    # d = distance
-    # e = markers
-    # f = ws_labels
-
-    # pimg(a)
-    # pimg(b)
-    # pimg(c)
-    # pimg(d)
-    # pimg(e)
-    # pimg(f)
 
     return ws_labels
 
@@ -392,4 +352,3 @@ def get_cell_confinement_ratio_at_frame(pathTracker, frame_num, center):
     cell = pathTracker.get_cell_from_center(frame_num,center)
 
     return cell.get_confinement_ratio()
-
