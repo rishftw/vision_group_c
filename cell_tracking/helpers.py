@@ -120,12 +120,12 @@ def find_centers(ws_labels, image):
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                 # center = (int(x + w / 2.0), int(y + h / 2.0))
                 centers.append(center)
+                boxes.append([x,y,x+w,y+h])
                 if(circularity > 0.80):
                     circular.append(np.asarray(center))
                     is_circular.append(True)
                 else:
                     is_circular.append(False)
-            boxes.append([x,y,x+w,y+h])
 
         except ZeroDivisionError:
             pass
