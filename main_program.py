@@ -192,7 +192,7 @@ def track_Fluo():
     bounding_box_list, centers_list = [], []
     frames = []
     # Load each frame
-    for filename in fi_list('Fluo-N2DL-HeLa/02'):
+    for filename in fi_list('Fluo-N2DL-HeLa/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
@@ -211,7 +211,7 @@ def track_PhC():
     net.load_state_dict(torch.load("CNN_PhC.pth", map_location=device))
     
     # Initialise Tracker
-    pathTracker = PathTracker(cost_threshold=10)
+    pathTracker = PathTracker(cost_threshold=15)
     bounding_box_list, centers_list = [], []
     frames = []
     # Load each frame

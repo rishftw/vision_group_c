@@ -36,7 +36,7 @@ def find_centers(ws_labels, image):
         cnts = imutils.grab_contours(cnts)
         c = max(cnts, key=cv2.contourArea)
         area = cv2.contourArea(c)
-        if area <= 0:  # skip ellipses smaller then 10x10
+        if area <= 0:  
             continue
 
         arclen = cv2.arcLength(c, True)
@@ -51,7 +51,7 @@ def find_centers(ws_labels, image):
                 # center = (int(x + w / 2.0), int(y + h / 2.0))
                 centers.append(center)
                 boxes.append([x,y,x+w,y+h])
-                if(circularity > 0.80):
+                if(circularity > 0.82):
                     circular.append(np.asarray(center))
                     is_circular.append(True)
                 else:
@@ -63,19 +63,17 @@ def find_centers(ws_labels, image):
 
 # plot rectangles around the labels 
 def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
-    counter  = 0
+    counter = 0
     for i in range(len(boundingBoxesList[image_index])):
         x1,y1,x2,y2 = boundingBoxesList[image_index][i]
-      
-    try:
-    
-        if boundingBoxesList[image_index][i] in mito_frames[image_index+1]:
-            cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
-            counter += 1
-        else:
-            cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
-    except:
-        pass
+        try:
+            if boundingBoxesList[image_index][i] in mito_frames[image_index]:
+                counter += 1
+                cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
+            else:
+                cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
+        except:
+            pass
     put_text(image,10,50, f'Mitosis Count: {counter}')
 
 # plot rectangles around the labels 
@@ -90,12 +88,12 @@ def put_text(image, x,y,text):
     
 # Draws the path from the given tracking object 
 def print_tracks(plot_image,tracker):
-    for i in range(len(tracker.tracked_cells )):
-        if (len(tracker.tracked_cells [i].positions) > 1):                
-            for k in range(1, len(tracker.tracked_cells [i].positions) - 1):
-                x = int(tracker.tracked_cells [i].positions[k][0])
-                y = int(tracker.tracked_cells [i].positions[k][1])
-                x2 = int(tracker.tracked_cells [i].positions[k+1][0])
-                y2 = int(tracker.tracked_cells [i].positions[k+1][1])
+    for i in range(len(tracker.tracked_cells)):
+            if len(tracker.tracked_cells[i].positions) > 1:
+                for k in range(1, len(tracker.tracked_cells[i].positions) - 1):
+                    x = int(tracker.tracked_cells[i].positions[k][0])
+                    y = int(tracker.tracked_cells[i].positions[k][1])
+                    x2 = int(tracker.tracked_cells[i].positions[k+1][0])
+                    y2 = int(tracker.tracked_cells[i].positions[k+1][1])
+                    cv2.line(plot_image, (x, y), (x2, y2), (0, 255, 0), 2)
                 
-                cv2.line(plot_image, (x, y), (x2,y2), (0,255,0), 2)
