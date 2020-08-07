@@ -268,25 +268,11 @@ class PathTracker():
             # Start new tracker for the cells
             if(len(un_assigned_detects) != 0):
                 for i in range(len(un_assigned_detects)):
-                    # cost = [-1] * \
-                    #     len(
-                    #         self.tracks_cell_disappeared_frame[self.frame_id-1])
-                    # for k in range(len(self.tracks_cell_disappeared_frame[self.frame_id-1])):
-                    #     diff = self.tracks_cell_disappeared_frame[self.frame_id -
-                    #                                               1][k].prediction - cell_centers_in_frame[un_assigned_detects[i]]
-                    #     distance = np.sqrt(
-                    #         diff[0][0]*diff[0][0] + diff[0][1]*diff[0][1])
-                    #     cost[k] = distance
-                    # if(len(cost)>0):
-                    #     if(min(cost) < 20):
-                    #         pass
-                    # else:
                         added_cell = self.add_cell(
                             cell_centers_in_frame[un_assigned_detects[i]], self.frame_id, is_circular[un_assigned_detects[i]], boundingBoxes[un_assigned_detects[i]])
 
             for i in range(len(assignment)):
                 self.tracked_cells[i].KF.predict()
-                # if len(self.tracked_cells[i].circularity) != len(self.tracked_cells[i].circularity)
                 if(assignment[i] > -1):
                     self.tracked_cells[i].circularity.append(
                         is_circular[assignment[i]])
