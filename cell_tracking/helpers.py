@@ -135,6 +135,7 @@ def find_centers(ws_labels, image):
 
 #plot rectangles around the labels 
 def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
+    counter  = 0
     for i in range(len(boundingBoxesList[image_index])):
         x1,y1,x2,y2 = boundingBoxesList[image_index][i]
       
@@ -142,11 +143,12 @@ def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
     
         if boundingBoxesList[image_index][i] in mito_frames[image_index+1]:
             cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
-            
+            counter += 1
         else:
             cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
     except:
         pass
+    put_text(image,10,50, f'Mitosis Count: {counter}')
 #         cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
 #FOR DEBUGGING
     plt.imshow(image)
