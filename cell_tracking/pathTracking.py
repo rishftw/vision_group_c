@@ -66,7 +66,7 @@ class TrackedCell():
             return self.check_return_mitosis(offset)
 
     def get_mitosis_boxes(self,offset):
-        boxes = []
+        boxes = [[]]
         # print(self.boundingBoxes)
         for i in range(len(self.positions) - offset-1,len(self.positions)):
             self.is_in_mitosis[i] = True
@@ -76,12 +76,12 @@ class TrackedCell():
 
 class PathTracker():
 
-    def __init__(self):
+    def __init__(self, cost_threshold):
         
         self.tracker_id = 0
         self.frame_id = 0
-        self.cost_thresh_allowed = 10
-        self.max_frame_skips_allowed = 20
+        self.cost_thresh_allowed = cost_threshold
+        self.max_frame_skips_allowed = 1
         self.max_trace_length_allowed = 1000
         # list of all tracked cell initialized
         self.tracked_cells = []
@@ -144,6 +144,7 @@ class PathTracker():
             self.tracks_blobs_in_frame.append(blob)
         self.tracks_cell_disappeared_frame.append([])
         self.mito_frames.append([])
+        print(len(self.mito_frames))
         if (len(cell_centers_in_frame) > 0):
             # Store the centers obtained in the frame to cell_centers_in_frame
             for (i, center) in enumerate(centers):
@@ -239,11 +240,11 @@ class PathTracker():
                             diff  = self.tracks_blobs_in_frame[index] - self.tracked_cells[id-offset].positions[-1]
                             distance = np.sqrt(
                                 diff[0]*diff[0] + diff[1]*diff[1])
-                            if distance < 10:
+                            if distance < 8:
                                 possible_mitosis_in_frame.append(self.tracked_cells[id-offset].cell_id)
                                 # print(self.tracked_cells[id-offset].cell_id,possible_mitosis_in_frame, abs(self.tracked_cells[id-offset].check_return_mitosis(-1)))
                                 result = abs(self.tracked_cells[id-offset].check_return_mitosis(-1))
-                                if result>1:
+                                if result>0:
                                     mito_boxes = self.tracked_cells[id-offset].get_mitosis_boxes(result)
                                     for length in range(len(mito_boxes)):
                                         box = mito_boxes.pop()

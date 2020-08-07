@@ -122,7 +122,6 @@ def find_centers(ws_labels, image):
                 boxes.append([x,y,x+w,y+h])
                 centers.append(center)
                 if(circularity > 0.80):
-                    put_text(image,x,y,'Mitosis' )
                     circular.append(np.asarray(center))
                     is_circular.append(True)
                 else:
@@ -138,19 +137,27 @@ def find_centers(ws_labels, image):
 def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
     for i in range(len(boundingBoxesList[image_index])):
         x1,y1,x2,y2 = boundingBoxesList[image_index][i]
-        print(x1,y1,x2,y2)
-        print( boundingBoxesList[image_index][i])
-        print(mito_frames[image_index+1])
+      
+    try:
+    
         if boundingBoxesList[image_index][i] in mito_frames[image_index+1]:
             cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
             
         else:
             cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
-    #FOR DEBUGGING
-    print(image.shape)
+    except:
+        pass
+#         cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
+#FOR DEBUGGING
     plt.imshow(image)
     plt.show()
 
+#plot rectangles around the labels 
+def plot_rectangles_normal(image, boundingBoxes):
+    for i in range(len(boundingBoxes)):
+        x1,y1,x2,y2 = boundingBoxes[i]
+        cv2.rectangle(image,(x1,y1),(x2,y2),(255,0,0),2)
+        
 #puts text on image
 def put_text(image, x,y,text):
     cv2.putText(image,text, (int(x), int(y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
