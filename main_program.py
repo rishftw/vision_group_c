@@ -7,9 +7,9 @@
 # Rishav Guha (z5294757)
 # Amel Johny (z5294308)
 
-from cell_tracking.helpers import plot_rectangles, get_centers_and_boxes
+from cell_tracking.helpers import plot_rectangles, find_centers, print_tracks, put_text, plot_rectangles_normal
 from cell_tracking.pathTracking import PathTracker
-from processing import get_ws_from_markers, equalize_clahe
+from processing import *
 from network import Network
 
 import numpy as np
@@ -27,10 +27,6 @@ from skimage.feature import peak_local_max
 
 from scipy import ndimage as ndi
 
-track_colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-                    (0, 255, 255), (255, 0, 255), (255, 127, 255),
-                    (127, 0, 255), (127, 0, 127)]
-font = cv2.FONT_HERSHEY_SIMPLEX
 selectPos = None
 selectFlag = False
 
@@ -46,23 +42,9 @@ def onMouse(event, x, y, flags, param):
         selectPos = (x, y)
         selectFlag = True
 
-def draw_tracks(tracker, image, labels, frame):
+def display_frame(tracker, image, frame, bounding_box_list, centers_list):
     pause = False
-    centers, bounding_boxes = get_centers_and_boxes(labels, image)
-    # draw bounding boxes for the detected cells
-    plot_rectangles(image, bounding_boxes)
-    tracker.Update(centers)
-    for i in range(len(tracker.tracks)):
-        if len(tracker.tracks[i].trace) > 1:
-            for j in range(len(tracker.tracks[i].trace)-1):
-                # Draw trace line
-                x1 = tracker.tracks[i].trace[j][0][0]
-                y1 = tracker.tracks[i].trace[j][1][0]
-                x2 = tracker.tracks[i].trace[j+1][0][0]
-                y2 = tracker.tracks[i].trace[j+1][1][0]
-                clr = tracker.tracks[i].track_id % 9
-                cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)),
-                         track_colours[clr], 3)
+
     cv2.namedWindow('Path Tracker')
     cv2.setMouseCallback('Path Tracker', onMouse)
     cv2.imshow('Path Tracker', image)
@@ -80,25 +62,19 @@ def draw_tracks(tracker, image, labels, frame):
                 # Find selected cell
                 selectedBox = None
                 x, y = selectPos
-                for i in range(len(bounding_boxes)):
-                    box = bounding_boxes[i]
+                for i in range(len(bounding_box_list[frame])):
+                    box = bounding_box_list[frame][i]
                     if x >= box[0] and box[2] >= x:
                         if y >= box[1] and box[3] >= y:
                             selectedBox = box
-                            center = centers[i]
+                            center = centers_list[frame][i]
                             break
                 if selectedBox is not None:
-                    # TODO Use "frame" param to get info for task 3
                     # Display info
-                    global font
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-10),
-                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-30),
-                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-50),
-                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
-                    cv2.putText(info, "Centre: ({}, {})".format(center[0][0], center[1][0]), (10, info.shape[0]-70),
-                                font, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+                    put_text(info, 10, info.shape[0], "Speed: {:.3f}".format(get_cell_speed_at_frame(tracker, frame, center)))
+                    put_text(info, 10, info.shape[0]-20, "Distance Travelled: {:.3f}".format(get_cell_distance_at_frame(tracker, frame, center)))
+                    put_text(info, 10, info.shape[0]-40, "Net Travelled: {:.3f}".format(get_cell_net_distance_at_frame(tracker, frame, center)))
+                    put_text(info, 10, info.shape[0]-60, "Confinement Ratio: {:.3f}".format(get_cell_confinement_ratio_at_frame(tracker, frame, center)))
                     cv2.imshow('Path Tracker', info)
                 selectFlag = False
             key = cv2.waitKey(50) & 0xff
@@ -136,17 +112,31 @@ def track_DIC():
     net.load_state_dict(torch.load("CNN_min_loss_dic.pth", map_location=device))
     
     # Initialise Tracker
-    tracker = PathTracker(20, 30, 15, 100)
-    frame = 0
+    pathTracker = PathTracker(cost_threshold=10)
+    bounding_box_list, centers_list = [], []
+    frames = []
     for filename in fi_list('DIC-C2DH-HeLa/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
         image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)        
         ws_labels = detect_DIC(image, net)
+        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
+        number_of_cells_in_frame = len(centers)
+        put_text(image, 10,100,"No of cells : {}".format(number_of_cells_in_frame))
+        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
+        bounding_box_list.append(boundingBoxes)
+        plot_rectangles_normal(image, boundingBoxes)
+        centers_list.append(centers)
+        print_tracks(image, pathTracker)
+        frames.append(image)
     
-        draw_tracks(tracker, image, ws_labels, frame)
-        frame += 1
+    image_counter = 0
+    for image in frames:
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
+        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
+        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
+        image_counter += 1
 
 def detect_Fluo(image):
     # Threshold at value of 129
@@ -160,16 +150,31 @@ def detect_Fluo(image):
 
 def track_Fluo():
     # Initialise Tracker
-    tracker = PathTracker(20, 30, 15, 100)
-    frame = 0
-    for filename in fi_list('Fluo-N2DL-HeLa/01'):
+    pathTracker = PathTracker(cost_threshold=10)
+    bounding_box_list, centers_list = [], []
+    frames = []
+    for filename in fi_list('Fluo-N2DL-HeLa/02'):
         if not filename.endswith(".tif"):
             continue
+        print(filename)
         image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)        
         ws_labels = detect_Fluo(image)
-
-        draw_tracks(tracker, image, ws_labels, frame)
-        frame += 1
+        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
+        number_of_cells_in_frame = len(centers)
+        put_text(image, 10,100,"No of cells : {}".format(number_of_cells_in_frame))
+        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
+        bounding_box_list.append(boundingBoxes)
+        plot_rectangles_normal(image, boundingBoxes)
+        centers_list.append(centers)
+        print_tracks(image, pathTracker)
+        frames.append(image)
+    
+    image_counter = 0
+    for image in frames:
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
+        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
+        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
+        image_counter += 1
 
 def detect_PhC(image, net):
     # Preprocessing
@@ -180,7 +185,7 @@ def detect_PhC(image, net):
 
     with torch.no_grad():
         net.eval()
-        # Generate cell mask and markers from image           
+        # Generate cell mask and markers from image
         output = net(x)
         markers = (output[0,0] > 0.5).int()
         cell_mask = (output[0,1] > 0.5).int()
@@ -198,17 +203,36 @@ def track_PhC():
     net.load_state_dict(torch.load("CNN_min_loss_phc.pth", map_location=device))
     
     # Initialise Tracker
-    tracker = PathTracker(20, 30, 15, 100)
-    frame = 0
+    pathTracker = PathTracker(cost_threshold=10)
+    bounding_box_list, centers_list = [], []
+    frames = []
+    count = 0
+    length = 100
     for filename in fi_list('PhC-C2DL-PSC/Sequence 3'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
-        image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
         ws_labels = detect_PhC(image, net)
-            
-        draw_tracks(tracker, image, ws_labels, frame)
-        frame += 1
+        centers, boundingBoxes, circular, is_circular = find_centers(ws_labels, image)
+        number_of_cells_in_frame = len(centers)
+        put_text(image, 10, 100,"No of cells : {}".format(number_of_cells_in_frame))
+        pathTracker.update(image, centers, circular, is_circular, boundingBoxes)
+        bounding_box_list.append(boundingBoxes)
+        plot_rectangles_normal(image, boundingBoxes)
+        centers_list.append(centers)
+        print_tracks(image, pathTracker)
+        frames.append(image)
+        count += 1
+        if count > length:
+            break
+    
+    image_counter = 0
+    for image in frames:
+        image = cv2.cvtColor(image,cv2.COLOR_GRAY2RGB)
+        plot_rectangles(image, bounding_box_list, pathTracker.mito_frames, image_counter)
+        display_frame(pathTracker, image, image_counter, bounding_box_list, centers_list)
+        image_counter += 1
 
 def main():
     select = int(input("Choose a dataset.\n1) DIC-C2DH-HeLa\n2) Fluo-N2DL-HeLa\n3) PhC-C2DL-PSC\n> "))
