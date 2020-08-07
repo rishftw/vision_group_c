@@ -41,47 +41,6 @@ def disk_erode(img, radius=24, iters=1):
     return eroded
 
 
-#Extract labels
-def find_labels_Fluo(filename):
-    image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-    # Threshold at value of 129
-    thresh = cv2.threshold(image, 129, 255, cv2.THRESH_BINARY)[1]
-    distance = ndi.distance_transform_edt(thresh)
-    local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((10, 10)),
-                            labels=thresh)
-    markers, _ = ndi.label(local_maxi)
-    ws_labels = watershed(-distance, markers, mask=thresh)
-    return ws_labels,image
-
-#Extract labels Phc
-def find_labels_Phc(filename):
-    image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-    thresh = cv2.threshold(image, 162, 255, cv2.THRESH_BINARY)[1]
-    kernel = np.ones((4,4),np.uint8)
-    # Perform an erosion followed by dilation opening to remove noise
-    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    distance = ndi.distance_transform_edt(opening)
-    local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((10, 10)),
-                            labels=thresh)
-    markers, _ = ndi.label(local_maxi)
-    ws_labels = watershed(-distance, markers, mask=thresh)
-    return ws_labels,image
-
-# #Extract labels  DIC
-# def find_labels_DIC(filename):
-#     image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-#     thresh = cv2.threshold(image, 162, 255, cv2.THRESH_BINARY)[1]
-#     kernel = np.ones((4,4),np.uint8)
-#     # Perform an erosion followed by dilation opening to remove noise
-#     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-#     distance = ndi.distance_transform_edt(opening)
-#     local_maxi = peak_local_max(distance, indices=False, footprint=np.ones((10, 10)),
-#                             labels=thresh)
-#     markers, _ = ndi.label(local_maxi)
-#     ws_labels = watershed(-distance, markers, mask=thresh)
-#     return ws_labels,image
-
-
 #extract centers of each labels 
 def find_centers(ws_labels, image):
     centers = []
@@ -106,7 +65,7 @@ def find_centers(ws_labels, image):
         cnts = imutils.grab_contours(cnts)
         c = max(cnts, key=cv2.contourArea)
         area = cv2.contourArea(c)
-        if area <= 0:  # skip ellipses smaller then 10x10
+        if area <= 0:  
             continue
 
         arclen = cv2.arcLength(c, True)
@@ -120,12 +79,12 @@ def find_centers(ws_labels, image):
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
                 # center = (int(x + w / 2.0), int(y + h / 2.0))
                 centers.append(center)
-                if(circularity > 0.80):
+                if(circularity > 0.82):
                     circular.append(np.asarray(center))
                     is_circular.append(True)
                 else:
                     is_circular.append(False)
-            boxes.append([x,y,x+w,y+h])
+                boxes.append([x,y,x+w,y+h])
 
         except ZeroDivisionError:
             pass
@@ -135,22 +94,20 @@ def find_centers(ws_labels, image):
 
 #plot rectangles around the labels 
 def plot_rectangles(image, boundingBoxesList, mito_frames, image_index):
-    counter  = 0
+    
     for i in range(len(boundingBoxesList[image_index])):
         x1,y1,x2,y2 = boundingBoxesList[image_index][i]
-      
-    try:
-    
-        if boundingBoxesList[image_index][i] in mito_frames[image_index+1]:
-            cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
-            counter += 1
-        else:
-            cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
-    except:
-        pass
-    put_text(image,10,50, f'Mitosis Count: {counter}')
-#         cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
-#FOR DEBUGGING
+        counter  = 0
+        try:
+            if boundingBoxesList[image_index][i] in mito_frames[image_index]:
+                counter += 1
+                cv2.rectangle(image,(x1,y1),(x2,y2),(0,255,0),2)
+                
+            else:
+                cv2.rectangle(image,(x1,y1),(x2,y2),(0,0,0),2)
+        except:
+            pass
+        put_text(image,10,50, f'Mitosis Count: {counter}')
 
 #plot rectangles around the labels 
 def plot_rectangles_normal(image, boundingBoxes):
@@ -168,18 +125,10 @@ def print_tracks(plot_image,tracker):
     
     for i in range(len(tracker.tracked_cells )):
             if (len(tracker.tracked_cells [i].positions) > 1):
-                # x = int(tracker.tracked_cells [i].positions[-1][0, 0])
-                # y = int(tracker.tracked_cells [i].positions[-1][0, 1])
-                # tl = (x-10, y-10)
-                # br = (x+10, y+10)
-                # cv2.rectangle(plot_image, tl, br, (0, 255, 0), 1) 
-                  
                 for k in range(1, len(tracker.tracked_cells [i].positions) - 1):
                     x = int(tracker.tracked_cells [i].positions[k][0])
                     y = int(tracker.tracked_cells [i].positions[k][1])
                     x2 = int(tracker.tracked_cells [i].positions[k+1][0])
                     y2 = int(tracker.tracked_cells [i].positions[k+1][1])
-                    # cv2.circle(plot_image, (x, y), 2, (0,255,0), 1)
                     cv2.line(plot_image, (x, y), (x2,y2), (0,255,0), 2)
-                    # print('drawing path for', len(tracker.tracked_cells [i].positions))
-                # cv2.circle(plot_image, (x, y), 2, (0,0,0), 1)
+                

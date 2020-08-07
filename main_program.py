@@ -115,7 +115,7 @@ def track_DIC():
     pathTracker = PathTracker(cost_threshold=10)
     bounding_box_list, centers_list = [], []
     frames = []
-    for filename in fi_list('DIC-C2DH-HeLa/Sequence 3'):
+    for filename in fi_list('DIC-C2DH-HeLa/Sequence 1'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
@@ -150,10 +150,10 @@ def detect_Fluo(image):
 
 def track_Fluo():
     # Initialise Tracker
-    pathTracker = PathTracker(cost_threshold=10)
+    pathTracker = PathTracker(cost_threshold=30)
     bounding_box_list, centers_list = [], []
     frames = []
-    for filename in fi_list('Fluo-N2DL-HeLa/02'):
+    for filename in fi_list('Fluo-N2DL-HeLa/Sequence 1'):
         if not filename.endswith(".tif"):
             continue
         print(filename)
@@ -203,12 +203,12 @@ def track_PhC():
     net.load_state_dict(torch.load("CNN_min_loss_phc.pth", map_location=device))
     
     # Initialise Tracker
-    pathTracker = PathTracker(cost_threshold=10)
+    pathTracker = PathTracker(cost_threshold=15)
     bounding_box_list, centers_list = [], []
     frames = []
     count = 0
     length = 100
-    for filename in fi_list('PhC-C2DL-PSC/Sequence 3'):
+    for filename in fi_list('PhC-C2DL-PSC/Sequence 1'):
         if not filename.endswith(".tif"):
             continue
         print(filename)

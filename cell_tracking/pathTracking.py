@@ -6,6 +6,7 @@ import cv2
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
+
 class TrackedCell():
 
     def __init__(self, center, cell_id):
@@ -15,7 +16,7 @@ class TrackedCell():
             1, 2)  # predicted centroids (x,y)
         self.skipped_frames = 0  # number of frames skipped undetected
         self.positions = []  # cell positions
-        self.added_in_frame  = None
+        self.added_in_frame = None
         self.circularity = []
         self.is_in_mitosis = []
         self.boundingBoxes = []
@@ -31,10 +32,10 @@ class TrackedCell():
         return result
 
     def get_net_distance_at_frame(self):
-        return np.sqrt( np.sum( ( self.positions[0] - self.positions[-1] ) ** 2 ) )
+        return np.sqrt(np.sum((self.positions[0] - self.positions[-1]) ** 2))
 
     def get_distance_at_frame(self):
-        return sum( [self.get_dist_at_frame(frame_num) for frame_num in range(1, len(self.positions))] )
+        return sum([self.get_dist_at_frame(frame_num) for frame_num in range(1, len(self.positions))])
 
     def get_dist_at_frame(self, idx):
         if len(self.positions) == 1:
@@ -42,45 +43,47 @@ class TrackedCell():
         elif idx < 0:
             return 0
         else:
-            return np.sqrt( np.sum( ( self.positions[idx] - self.positions[idx-1] ) ** 2 ) )
+            return np.sqrt(np.sum((self.positions[idx] - self.positions[idx-1]) ** 2))
 
     def get_speed_at_frame(self):
 
         if len(self.positions) == 1:
             return 0
         else:
-            return np.sqrt( np.sum( ( self.positions[-1] - self.positions[-2] ) ** 2 ) )
+            return np.sqrt(np.sum((self.positions[-1] - self.positions[-2]) ** 2))
 
     def updatePrediction(self, center):
         self.prediction = np.array(self.KF.predict()).reshape(1, 2)
         self.KF.correct(np.matrix(center).reshape(2, 1))
 
     def check_return_mitosis(self, offset):
-        if(len(self.circularity)  < abs(offset)):
+        if(len(self.circularity) < abs(offset)):
             return 0
-        if self.circularity[offset] !=  True:
+        if self.circularity[offset] != True:
             return offset
         else:
-            offset  = offset - 1
+            offset = offset - 1
             return self.check_return_mitosis(offset)
 
-    def get_mitosis_boxes(self,offset):
+    def get_mitosis_boxes(self, offset):
         boxes = [[]]
         # print(self.boundingBoxes)
-        for i in range(len(self.positions) - offset-1,len(self.positions)):
+        for i in range(len(self.positions) - offset-1, len(self.positions)-1):
             self.is_in_mitosis[i] = True
             # print(f'assigning bb: {self.boundingBoxes[i]}')
             boxes.append(self.boundingBoxes[i])
+        print(self.is_in_mitosis)
         return boxes
+
 
 class PathTracker():
 
     def __init__(self, cost_threshold):
-        
+
         self.tracker_id = 0
         self.frame_id = 0
         self.cost_thresh_allowed = cost_threshold
-        self.max_frame_skips_allowed = 1
+        self.max_frame_skips_allowed = 0
         self.max_trace_length_allowed = 1000
         # list of all tracked cell initialized
         self.tracked_cells = []
@@ -94,22 +97,23 @@ class PathTracker():
         self.tracks_cell_disappeared_frame = []
         # list of all tracked cell initialized relation to parent
         self.tracks_cell_in_frame_parents = []
-        #listof possible mitosis elements
+        # listof possible mitosis elements
         self.possible_motosis = []
-        #Motisis cell frames
+        # Motisis cell frames
         self.mito_frames = []
-    def get_cell_from_center(self,frame_id,center):
-        N= len(self.tracks_cell_in_frame[frame_id])
-        M=1
+
+    def get_cell_from_center(self, frame_id, center):
+        N = len(self.tracks_cell_in_frame[frame_id])
+        M = 1
         cost = [-1]*N
         for i in range(N):
-            
-                diff = self.tracks_cell_in_frame[frame_id][i].positions[frame_id - self.tracks_cell_in_frame[frame_id][i].added_in_frame] - center
-                distance = np.sqrt(diff[0]*diff[0]  + diff[1]*diff[1])
-                cost[i] = distance * (0.5)
+
+            diff = self.tracks_cell_in_frame[frame_id][i].positions[frame_id -
+                                                                    self.tracks_cell_in_frame[frame_id][i].added_in_frame] - center
+            distance = np.sqrt(diff[0]*diff[0] + diff[1]*diff[1])
+            cost[i] = distance * (0.5)
         min_index = cost.index(min(cost))
         return self.tracks_cell_in_frame[frame_id][min_index]
-
 
     def add_cell(self, center, frame_id, circularity, boundingBox):
         # initialise new cell object
@@ -128,7 +132,7 @@ class PathTracker():
         new_cell.circularity.append(circularity)
         # Add  mitosis status
         new_cell.is_in_mitosis.append(False)
-        #Add   bounding box
+        # Add   bounding box
         new_cell.boundingBoxes.append(boundingBox)
         return new_cell
 
@@ -139,11 +143,10 @@ class PathTracker():
     def update(self, image, centers, circular, is_circular, boundingBoxes):
         # If centers are detected in frame process the centers
         cell_centers_in_frame = np.zeros((len(centers), 2), dtype="int")
-        for blob in circular:    
+        for blob in circular:
             self.tracks_blobs_in_frame.append(blob)
         self.tracks_cell_disappeared_frame.append([])
         self.mito_frames.append([])
-        print(len(self.mito_frames))
         if (len(cell_centers_in_frame) > 0):
             # Store the centers obtained in the frame to cell_centers_in_frame
             for (i, center) in enumerate(centers):
@@ -153,25 +156,25 @@ class PathTracker():
             if len(self.tracked_cells) == 0:
                 for i in range(len(cell_centers_in_frame)):
                     # Add the cell and returns cell ID
-                    self.add_cell(cell_centers_in_frame[i], self.frame_id, is_circular[i],boundingBoxes[i])
-                # Add the centers list to the tracked centers list of the frame.
+                    self.add_cell(
+                        cell_centers_in_frame[i], self.frame_id, is_circular[i], boundingBoxes[i])
+                    # Add the centers list to the tracked centers list of the frame.
 
-           
-
-            # Calculate cost using sum of square distance between
-            # predicted vs detected centroids
             # TODO: TO BE REFERENCED
-            N = len(self.tracked_cells)
-            # RETURN THE NUMBER OF CELL  ALREADY IN TRACKED LIST
-            M = len(cell_centers_in_frame)
-            # RETURN THE NUMBER OF CELL  IDENTIFIED IN NEW FRAME
 
-            # Cost matrix giving distance cost with new centers found 
-            cost = np.zeros(shape=(N, M))   
+            # RETURN THE NUMBER OF CELL  ALREADY IN TRACKED LIST
+            N = len(self.tracked_cells)
+            # RETURN THE NUMBER OF CELL  IDENTIFIED IN NEW FRAME
+            M = len(cell_centers_in_frame)
+
+            # Cost matrix giving distance cost with new centers found
+            cost = np.zeros(shape=(N, M))
             least_finder = np.zeros(shape=(N, M))
             for i in range(N):
                 for j in range(M):
                     try:
+                        # Calculate cost using sum of square distance between
+                        # predicted vs detected centroids
                         diff = self.tracked_cells[i].prediction - \
                             cell_centers_in_frame[j]
                         distance = np.sqrt(
@@ -182,11 +185,6 @@ class PathTracker():
                         print("error while calculating distance")
                         pass
 
-            # for i in range(len(self.tracked_cells)):
-            #     for j in range(len(cell_centers_in_frame)):
-            #         if int(cost[i][j]) == 0:
-            #             print('cost:',i,'-> ',j , cost[i][j],'\n')
-            # Let's average the squared ERROR
             cost = (0.5) * cost
             # Using Hungarian Algorithm assign the correct detected measurements
             # to predicted cell positions
@@ -195,36 +193,28 @@ class PathTracker():
             assignment = [-1 for i in range(N)]
             for i in range(len(row_ind)):
                 assignment[row_ind[i]] = col_ind[i]
-            
-                
+
             # Identify tracker with no assignment, if any
             un_assigned_tracks = []
             for i in range(len(assignment)):
                 if (assignment[i] != -1):
-                    #                     # check for cost distance threshold.
-                    #                     # If cost is very high then un_assign (delete) the tracker.track
-                    ##print(i, assignment[i], cost[i][assignment[i]])
+                    # check for cost distance threshold.
+                    # If cost is very high then un_assign (delete) the tracker.track
                     if (cost[i][assignment[i]] > self.cost_thresh_allowed):
                         assignment[i] = -1
-                        ## print('unassigning',i,assignment[i])
                         un_assigned_tracks.append(i)
                         self.tracked_cells[i].skipped_frames += 1
                     else:
                         pass
 
                 else:
-                    # un_assigned_tracks.append(i)
                     self.tracked_cells[i].skipped_frames += 1
-            
 
             # If tracker are not detected for long time, remove them
             del_tracks = []
             for i in range(len(self.tracked_cells)):
                 if (self.tracked_cells[i].skipped_frames > 0):
                     del_tracks.append(i)
-            
-            #check for mitosis
-            
 
             # del_tracks = sorted(del_tracks, reverse=True)
             possible_mitosis_in_frame = []
@@ -232,102 +222,90 @@ class PathTracker():
                 offset = 0
                 for id in del_tracks:
                     if id < N:
-                        self.tracks_cell_disappeared_frame[self.frame_id].append(self.tracked_cells[id-offset].cell_id)
+                        self.tracks_cell_disappeared_frame[self.frame_id].append(
+                            self.tracked_cells[id-offset])
                         cost = [-1]*len(self.tracks_blobs_in_frame)
+                        # check for mitosis
                         for index in range(len(self.tracks_blobs_in_frame)):
-                             
-                            diff  = self.tracks_blobs_in_frame[index] - self.tracked_cells[id-offset].positions[-1]
+
+                            diff = self.tracks_blobs_in_frame[index] - \
+                                self.tracked_cells[id-offset].positions[-1]
                             distance = np.sqrt(
                                 diff[0]*diff[0] + diff[1]*diff[1])
-                            if distance < 8:
-                                possible_mitosis_in_frame.append(self.tracked_cells[id-offset].cell_id)
+                            cost[index] = distance
+                        
+                        cost = sorted(cost)
+
+                        if len(cost)>1:
+                            if cost[0]+cost[1] < 18:
+                                possible_mitosis_in_frame.append(
+                                    self.tracked_cells[id-offset].cell_id)
                                 # print(self.tracked_cells[id-offset].cell_id,possible_mitosis_in_frame, abs(self.tracked_cells[id-offset].check_return_mitosis(-1)))
-                                result = abs(self.tracked_cells[id-offset].check_return_mitosis(-1))
-                                if result>0:
-                                    mito_boxes = self.tracked_cells[id-offset].get_mitosis_boxes(result)
+                                # Check how many frame possible mitosis was detected
+                                result = abs(
+                                    self.tracked_cells[id-offset].check_return_mitosis(-1))
+                                if result > 0:
+                                    mito_boxes = self.tracked_cells[id -
+                                                                    offset].get_mitosis_boxes(result)
                                     for length in range(len(mito_boxes)):
                                         box = mito_boxes.pop()
                                         if box not in self.mito_frames[self.frame_id-length]:
-                                            self.mito_frames[self.frame_id-length].append(box)
-                                    #     
-                                    # print('mito_boxes',mito_boxes)
+                                            self.mito_frames[self.frame_id -
+                                                                length - 2].append(box)
                         del self.tracked_cells_ids[id-offset]
                         del self.tracked_cells[id-offset]
                         del assignment[id-offset]
-                        offset+=1
+                        offset += 1
                     else:
                         print("ERROR: id is greater than length of tracker.tracks")
             self.possible_motosis.append(possible_mitosis_in_frame)
             # Now look for un_assigned detects
             un_assigned_detects = []
             for i in range(len(cell_centers_in_frame)):
-                ##print("Unassigned check", i, i not in assignment)
                 if i not in assignment:
                     un_assigned_detects.append(i)
 
             # Start new tracker for the cells
             if(len(un_assigned_detects) != 0):
                 for i in range(len(un_assigned_detects)):
-                    # print("unassigned detect in tracked_ids?:",i, un_assigned_detects[i] not in self.tracked_cells_ids)
-                    # if un_assigned_detects[i] not in self.tracked_cells_ids: 
-                    # print(cell_centers_in_frame[un_assigned_detects[i]], self.frame_id) 
-                    added_cell = self.add_cell(
-                        cell_centers_in_frame[un_assigned_detects[i]], self.frame_id,is_circular[un_assigned_detects[i]],boundingBoxes[un_assigned_detects[i]])
-                    # self.add_to_frame(
-                    #     cell_centers_in_frame[un_assigned_detects[i]])
-            ## for i in range(len(un_assigned_tracks)):
-            ##     print(i,un_assigned_tracks[i])
-            #for i in range(len(self.tracked_cells)):
-                #cv2.putText(image, "{}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
-                                #0.7, (0, 20, 40), 2)
+                    # cost = [-1] * \
+                    #     len(
+                    #         self.tracks_cell_disappeared_frame[self.frame_id-1])
+                    # for k in range(len(self.tracks_cell_disappeared_frame[self.frame_id-1])):
+                    #     diff = self.tracks_cell_disappeared_frame[self.frame_id -
+                    #                                               1][k].prediction - cell_centers_in_frame[un_assigned_detects[i]]
+                    #     distance = np.sqrt(
+                    #         diff[0][0]*diff[0][0] + diff[0][1]*diff[0][1])
+                    #     cost[k] = distance
+                    # if(len(cost)>0):
+                    #     if(min(cost) < 20):
+                    #         pass
+                    # else:
+                        added_cell = self.add_cell(
+                            cell_centers_in_frame[un_assigned_detects[i]], self.frame_id, is_circular[un_assigned_detects[i]], boundingBoxes[un_assigned_detects[i]])
+
             for i in range(len(assignment)):
                 self.tracked_cells[i].KF.predict()
-                # if len(self.tracked_cells[i].circularity) != len(self.tracked_cells[i].circularity) 
+                # if len(self.tracked_cells[i].circularity) != len(self.tracked_cells[i].circularity)
                 if(assignment[i] > -1):
-                    self.tracked_cells[i].circularity.append(is_circular[assignment[i]])
+                    self.tracked_cells[i].circularity.append(
+                        is_circular[assignment[i]])
                     self.tracked_cells[i].is_in_mitosis.append(False)
-                    
+
                     self.tracked_cells[i].skipped_frames = 0
                     self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
                         np.matrix(cell_centers_in_frame[assignment[i]]).reshape(2, 1), 1)
-                    self.tracked_cells[i].boundingBoxes.append(boundingBoxes[assignment[i]])
-                    # print(self.tracked_cells[i].prediction[0,0])
-                    ## FORDEBUGGING
+                    self.tracked_cells[i].boundingBoxes.append(
+                        boundingBoxes[assignment[i]])
+
                 else:
-                    # pass
-        #         # elif assignment[i]==-1:
                     self.tracked_cells[i].circularity.append(False)
                     self.tracked_cells[i].is_in_mitosis.append(False)
                     self.tracked_cells[i].KF.state, self.tracked_cells[i].prediction = self.tracked_cells[i].KF.correct(
                         np.matrix([[0], [1]]).reshape(2, 1), 0)
-        #         else:
-        #             # print(type(self.tracked_cells[i].positions[-1]))
-        #             self.tracked_cells[i].prediction[0,0] = self.tracked_cells[i].positions[-1][0]
-        #             self.tracked_cells[i].prediction[0,1] = self.tracked_cells[i].positions[-1][1]
-        #             pass
-        #         if(len(self.tracked_cells[i].positions) > self.max_trace_length_allowed):
-        #             for j in range(len(self.tracked_cells[i].positions) - self.max_trace_length_allowed):
-        #                 del self.tracked_cells[i].positions[j]
-                self.tracked_cells[i].positions.append(
-                    cell_centers_in_frame[assignment[i]])
-        #         # if(self.tracked_cells[i].cell_id == 96):
-        #         cv2.putText(image, "{}".format(self.tracked_cells[i].cell_id), (int(self.tracked_cells[i].prediction[0, 0]), int(self.tracked_cells[i].prediction[0, 1])), cv2.FONT_HERSHEY_SIMPLEX,
-        #                         0.5, (0, 20, 40), 2)
-        # for cell in self.tracked_cells:
-        #     for i in range(len(cell.positions)-1):
-        #         # cv2.circle(image, (int(prediction[0]), int(
-        #         #     prediction[1])), 2, (0, 255, 0), -1)
-        #         cv2.line(image, (int(cell.positions[i][0]), int(
-        #             cell.positions[i][1])), (int(cell.positions[i+1][0]), int(
-        #             cell.positions[i+1][1])), (0, 255, 0), 2)
 
-            ## for i in range(len(self.tracked_cells)):
-            ##     if(i==4):
-            ##         print(f'self.tracked_cells index: {i}\n,tracked_cells[i].cell_id: {self.tracked_cells[i].cell_id}\n,self.tracked_cells[i].positions :{self.tracked_cells[i].positions}\n')
-        # plt.imshow(image,  cmap="gray")
-        # plt.show()
-        # print('self.tracks_cell_disappeared_frame[self.frame_id]:',self.frame_id,[ i for i in self.tracks_cell_disappeared_frame[self.frame_id]])
-        # print(self.tracks_cell_in_frame,self.tracked_cells)
+                self.tracked_cells[i].positions.append(
+                    self.tracked_cells[i].prediction[0])
 
         self.tracks_cell_in_frame.append(deepcopy(self.tracked_cells))
         self.frame_id += 1
